@@ -1,7 +1,9 @@
+import { require } from "./utils.ts";
 import type { Admin } from './admin.ts';
 import type { Collection } from './collection.ts';
 import type { Db } from './db.ts';
 import type { MongoClient } from './mongo_client.ts';
+import from from "https://deno.land/std@0.83.0/node/_stream/from.ts";
 
 let collection: typeof Collection;
 let db: typeof Db;

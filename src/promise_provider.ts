@@ -34,4 +34,4 @@ export class PromiseProvider {
   }
 }
 
-PromiseProvider.set(global.Promise);
+PromiseProvider.set(Promise);

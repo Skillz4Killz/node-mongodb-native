@@ -1,4 +1,4 @@
-import { Readable, Timestamp, EventEmitter } from "../deps.ts";
+import { Denque, Readable, Timestamp, EventEmitter } from "../deps.ts";
 
 import { MongoError, AnyError, isResumableError } from "./error.ts";
 import { AggregateOperation, AggregateOptions } from "./operations/aggregate.ts";

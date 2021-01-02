@@ -7,7 +7,7 @@ import type { Document } from '../bson.ts';
 import type { GridFSBucket } from './index.ts';
 import type { GridFSFile } from './download.ts';
 import type { WriteConcernOptions } from '../write_concern.ts';
-import { Buffer, createHash, ObjectId } from "../../deps.ts";
+import { Buffer, createHash, ObjectId, Writable } from "../../deps.ts";
 
 const ERROR_NAMESPACE_NOT_FOUND = 26;
 

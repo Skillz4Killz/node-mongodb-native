@@ -1,4 +1,4 @@
-import { EventEmitter, process } from "../../deps.ts";
+import { Denque, EventEmitter, process } from "../../deps.ts";
 import { ReadPreference, ReadPreferenceLike } from "../read_preference.ts";
 import { ServerDescription } from "./server_description.ts";
 import { TopologyDescription } from "./topology_description.ts";

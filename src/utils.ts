@@ -1,4 +1,4 @@
-import { Buffer, EventEmitter, process, randomBytes } from "../deps.ts";
+import { Buffer, createRequire, EventEmitter, process, randomBytes } from "../deps.ts";
 import { PromiseProvider } from "./promise_provider.ts";
 import { MongoError, AnyError } from "./error.ts";
 import { WriteConcern, WriteConcernOptions, W } from "./write_concern.ts";
@@ -1284,3 +1284,5 @@ export class BufferPool {
     return result;
   }
 }
+
+export const require = createRequire(import.meta.url);

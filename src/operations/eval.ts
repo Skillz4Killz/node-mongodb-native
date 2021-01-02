@@ -1,5 +1,5 @@
 import { CommandOperation, CommandOperationOptions } from './command.ts';
-import { Code, Document } from '../bson.ts';
+import { Document } from '../bson.ts';
 import { ReadPreference } from '../read_preference.ts';
 import { MongoError } from '../error.ts';
 import type { Callback } from '../utils.ts';
@@ -7,6 +7,7 @@ import type { Server } from '../sdam/server.ts';
 import type { Db } from '../db.ts';
 import type { Collection } from '../collection.ts';
 import type { ClientSession } from '../sessions.ts';
+import { Code } from "../../deps.ts";
 
 /** @public */
 export interface EvalOptions extends CommandOperationOptions {

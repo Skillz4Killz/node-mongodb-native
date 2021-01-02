@@ -1,4 +1,4 @@
-import { EventEmitter, Long } from "../../deps.ts";
+import { EventEmitter, Long, SocketConnectOpts, TLSConnectionOpts } from "../../deps.ts";
 import { MessageStream, OperationDescription } from "./message_stream.ts";
 import { StreamDescription, StreamDescriptionOptions } from "./stream_description.ts";
 import { CommandStartedEvent, CommandFailedEvent, CommandSucceededEvent } from "./events.ts";

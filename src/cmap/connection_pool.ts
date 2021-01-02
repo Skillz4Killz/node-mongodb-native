@@ -1,4 +1,4 @@
-import { EventEmitter, process } from "../../deps.ts";
+import { Denque, EventEmitter, process } from "../../deps.ts";
 import { Logger } from "../logger.ts";
 import { Connection, ConnectionOptions, CommandOptions } from "./connection.ts";
 import { connect } from "./connect.ts";
