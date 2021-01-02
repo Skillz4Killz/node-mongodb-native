@@ -1,30 +1,37 @@
 import { Db, DbOptions } from './db';
 import { EventEmitter } from 'events';
 import { ChangeStream, ChangeStreamOptions } from './change_stream';
-import { ReadPreference, ReadPreferenceMode } from './read_preference';
+import { ReadPreference, ReadPreferenceModeId } from './read_preference';
 import { MongoError, AnyError } from './error';
-import { WriteConcern, WriteConcernOptions } from './write_concern';
-import { maybePromise, MongoDBNamespace, Callback } from './utils';
+import { WriteConcern, W, WriteConcernSettings } from './write_concern';
+import { maybePromise, MongoDBNamespace, Callback, resolveOptions } from './utils';
 import { deprecate } from 'util';
 import { connect, validOptions } from './operations/connect';
 import { PromiseProvider } from './promise_provider';
 import { Logger } from './logger';
-import { ReadConcern, ReadConcernLevelLike, ReadConcernLike } from './read_concern';
-import type { BSONSerializeOptions, Document } from './bson';
+import { ReadConcern, ReadConcernLevelId, ReadConcernLike } from './read_concern';
+import { BSONSerializeOptions, Document, resolveBSONOptions } from './bson';
 import type { AutoEncryptionOptions } from './deps';
 import type { CompressorName } from './cmap/wire_protocol/compression';
-import type { AuthMechanism } from './cmap/auth/defaultAuthProviders';
+import type { AuthMechanismId } from './cmap/auth/defaultAuthProviders';
 import type { Topology } from './sdam/topology';
 import type { ClientSession, ClientSessionOptions } from './sessions';
-import type { OperationParent } from './operations/command';
+import type { TagSet } from './sdam/server_description';
+import type { ConnectionOptions as TLSConnectionOptions } from 'tls';
+import type { TcpSocketConnectOpts as ConnectionOptions } from 'net';
+import type { MongoCredentials } from './cmap/auth/mongo_credentials';
+import { parseOptions } from './connection_string';
 
 /** @public */
-export enum LogLevel {
-  'error' = 'error',
-  'warn' = 'warn',
-  'info' = 'info',
-  'debug' = 'debug'
-}
+export const LogLevel = {
+  error: 'error',
+  warn: 'warn',
+  info: 'info',
+  debug: 'debug'
+} as const;
+
+/** @public */
+export type LogLevelId = typeof LogLevel[keyof typeof LogLevel];
 
 /** @public */
 export interface DriverInfo {
@@ -36,9 +43,9 @@ export interface DriverInfo {
 /** @public */
 export interface Auth {
   /** The username for auth */
-  user?: string;
+  username?: string;
   /** The password for auth */
-  pass?: string;
+  password?: string;
 }
 
 /** @public */
@@ -53,7 +60,7 @@ type CleanUpHandlerFunction = (err?: AnyError, result?: any, opts?: any) => Prom
  * @public
  * @see https://docs.mongodb.com/manual/reference/connection-string
  */
-export interface MongoURIOptions extends Pick<WriteConcernOptions, 'journal' | 'w' | 'wtimeoutMS'> {
+export interface MongoURIOptions {
   /** Specifies the name of the replica set, if the mongod is a member of a replica set. */
   replicaSet?: string;
   /** Enables or disables TLS/SSL for the connection. */
@@ -79,46 +86,43 @@ export interface MongoURIOptions extends Pick<WriteConcernOptions, 'journal' | '
   /** Comma-delimited string of compressors to enable network compression for communication between this client and a mongod/mongos instance. */
   compressors?: string;
   /** An integer that specifies the compression level if using zlib for network compression. */
-  zlibCompressionLevel?: number;
+  zlibCompressionLevel?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | undefined;
   /** The maximum number of connections in the connection pool. */
   maxPoolSize?: number;
   /** The minimum number of connections in the connection pool. */
   minPoolSize?: number;
   /** The maximum number of milliseconds that a connection can remain idle in the pool before being removed and closed. */
   maxIdleTimeMS?: number;
-  /** A number that the driver multiples the maxPoolSize value to, to provide the maximum number of threads allowed to wait for a connection to become available from the pool. */
-  waitQueueMultiple?: number;
   /** The maximum time in milliseconds that a thread can wait for a connection to become available. */
   waitQueueTimeoutMS?: number;
   /** The level of isolation */
-  readConcernLevel?: ReadConcernLevelLike;
+  readConcernLevel?: ReadConcernLevelId;
   /** Specifies the read preferences for this connection */
-  readPreference?: ReadPreferenceMode | ReadPreference;
+  readPreference?: ReadPreferenceModeId | ReadPreference;
   /** Specifies, in seconds, how stale a secondary can be before the client stops using it for read operations. */
   maxStalenessSeconds?: number;
   /** Specifies the tags document as a comma-separated list of colon-separated key-value pairs.  */
-  readPreferenceTags?: string;
+  readPreferenceTags?: TagSet[];
   /** Specify the database name associated with the user’s credentials. */
   authSource?: string;
   /** Specify the authentication mechanism that MongoDB will use to authenticate the connection. */
-  authMechanism?: AuthMechanism;
+  authMechanism?: AuthMechanismId;
   /** Specify properties for the specified authMechanism as a comma-separated list of colon-separated key-value pairs. */
   authMechanismProperties?: {
     SERVICE_NAME?: string;
     CANONICALIZE_HOST_NAME?: boolean;
     SERVICE_REALM?: string;
+    [key: string]: any;
   };
-  /** Set the Kerberos service name when connecting to Kerberized MongoDB instances. This value must match the service name set on MongoDB instances to which you are connecting. */
-  gssapiServiceName?: string;
   /** The size (in milliseconds) of the latency window for selecting among multiple suitable MongoDB instances. */
   localThresholdMS?: number;
   /** Specifies how long (in milliseconds) to block for server selection before throwing an exception.  */
   serverSelectionTimeoutMS?: number;
-  /** When true, instructs the driver to scan the MongoDB deployment exactly once after server selection fails and then either select a server or raise an error. When false, the driver blocks and searches for a server up to the serverSelectionTimeoutMS value. */
-  serverSelectionTryOnce?: boolean;
   /** heartbeatFrequencyMS controls when the driver checks the state of the MongoDB deployment. Specify the interval (in milliseconds) between checks, counted from the end of the previous check until the beginning of the next one. */
   heartbeatFrequencyMS?: number;
-  /** Specify a custom app name. */
+  /** Sets the minimum heartbeat frequency. In the event that the driver has to frequently re-check a server's availability, it will wait at least this long since the previous check to avoid wasted effort. */
+  minHeartbeatFrequencyMS?: number;
+  /** The name of the application that created this MongoClient instance. MongoDB 3.4 and newer will print this value in the server log upon establishing each connection. It is also recorded in the slow query log and profile collections */
   appName?: string;
   /** Enables retryable reads. */
   retryReads?: boolean;
@@ -126,27 +130,35 @@ export interface MongoURIOptions extends Pick<WriteConcernOptions, 'journal' | '
   retryWrites?: boolean;
   /** Allow a driver to force a Single topology type with a connection string containing one host */
   directConnection?: boolean;
+
+  // username and password in Authority section not query string.
+  username?: string;
+  password?: string;
+
+  // remove in NODE-2704
+  fsync?: boolean;
+  w?: W;
+  j?: boolean;
+  journal?: boolean;
+  wtimeout?: number;
+  wtimeoutMS?: number;
+  writeConcern?: WriteConcern | WriteConcernSettings;
 }
 
 /** @public */
-export interface MongoClientOptions
-  extends WriteConcernOptions,
-    MongoURIOptions,
-    BSONSerializeOptions {
-  /** The maximum number of connections in the connection pool. */
-  poolSize?: MongoURIOptions['maxPoolSize'];
+export interface MongoClientOptions extends MongoURIOptions, BSONSerializeOptions {
   /** Validate mongod server certificate against Certificate Authority */
   sslValidate?: boolean;
   /** SSL Certificate store binary buffer. */
-  sslCA?: Buffer;
+  sslCA?: string | Buffer | Array<string | Buffer>;
   /** SSL Certificate binary buffer. */
-  sslCert?: Buffer;
+  sslCert?: string | Buffer | Array<string | Buffer>;
   /** SSL Key file binary buffer. */
-  sslKey?: Buffer;
+  sslKey?: string | Buffer | Array<string | Buffer>;
   /** SSL Certificate pass phrase. */
   sslPass?: string;
   /** SSL Certificate revocation list binary buffer. */
-  sslCRL?: Buffer;
+  sslCRL?: string | Buffer | Array<string | Buffer>;
   /** Ensure we check server identify during SSL, set to false to disable checking. */
   checkServerIdentity?: boolean | ((hostname: string, cert: Document) => Error | undefined);
   /** TCP Connection no delay */
@@ -157,14 +169,6 @@ export interface MongoClientOptions
   keepAliveInitialDelay?: number;
   /** Version of IP stack. Can be 4, 6 or null (default). If null, will attempt to connect with IPv6, and will fall back to IPv4 on failure */
   family?: 4 | 6 | null;
-  /** Server attempt to reconnect #times */
-  reconnectTries?: number;
-  /** Server will wait number of milliseconds between retries */
-  reconnectInterval?: number;
-  /** Control if high availability monitoring runs for Replicaset or Mongos proxies */
-  ha?: boolean;
-  /** The High availability period for replicaset inquiry */
-  haInterval?: number;
   /** Force server to assign `_id` values instead of driver */
   forceServerObjectId?: boolean;
   /** Return document results as raw BSON buffers */
@@ -176,15 +180,9 @@ export interface MongoClientOptions
   /** Specify a read concern for the collection (only MongoDB 3.2 or higher supported) */
   readConcern?: ReadConcernLike;
   /** The logging level */
-  loggerLevel?: LogLevel;
+  loggerLevel?: LogLevelId;
   /** Custom logger object */
   logger?: Logger;
-  /** Enable the wrapping of the callback in the current domain, disabled by default to avoid perf hit */
-  domainsEnabled?: boolean;
-  /** Validate MongoClient passed in options for correctness */
-  validateOptions?: boolean;
-  /** The name of the application that created this MongoClient instance. MongoDB 3.4 and newer will print this value in the server log upon establishing each connection. It is also recorded in the slow query log and profile collections */
-  appname?: MongoURIOptions['appName'];
   /** The auth settings for when connection to server. */
   auth?: Auth;
   /** Type of compression to use?: snappy or zlib */
@@ -193,12 +191,6 @@ export interface MongoClientOptions
   numberOfRetries?: number;
   /** Enable command monitoring for this client */
   monitorCommands?: boolean;
-  /** If present, the connection pool will be initialized with minSize connections, and will never dip below minSize connections */
-  minSize?: number;
-  /** Determines whether or not to use the new url parser. Enables the new, spec-compliant, url parser shipped in the core driver. This url parser fixes a number of problems with the original parser, and aims to outright replace that parser in the near future. Defaults to true, and must be explicitly set to false to use the legacy url parser. */
-  useNewUrlParser?: boolean;
-  /** Enables the new unified topology layer */
-  useUnifiedTopology?: boolean;
   /** Optionally enable client side auto encryption */
   autoEncryption?: AutoEncryptionOptions;
   /** Allows a wrapping driver to amend the client metadata generated by the driver to include information about the wrapping driver */
@@ -207,6 +199,7 @@ export interface MongoClientOptions
   servername?: string;
 
   dbName?: string;
+  useRecoveryToken?: boolean;
 }
 
 /** @public */
@@ -216,10 +209,11 @@ export type WithSessionCallback = (session: ClientSession) => Promise<any> | voi
 export interface MongoClientPrivate {
   url: string;
   options?: MongoClientOptions;
-  dbCache: Map<string, Db>;
   sessions: Set<ClientSession>;
   readConcern?: ReadConcern;
   writeConcern?: WriteConcern;
+  readPreference: ReadPreference;
+  bsonOptions: BSONSerializeOptions;
   namespace: MongoDBNamespace;
   logger: Logger;
 }
@@ -261,26 +255,44 @@ export interface MongoClientPrivate {
  * });
  * ```
  */
-export class MongoClient extends EventEmitter implements OperationParent {
+export class MongoClient extends EventEmitter {
   /** @internal */
   s: MongoClientPrivate;
   topology?: Topology;
+
+  /**
+   * The consolidate, parsed, transformed and merged options.
+   * @internal
+   */
+  options;
+
+  // debugging
+  originalUri;
+  originalOptions;
 
   constructor(url: string, options?: MongoClientOptions) {
     super();
 
     if (options && options.promiseLibrary) {
       PromiseProvider.set(options.promiseLibrary);
+      // TODO NODE-2530: this will go away when client options are sorted out
+      // NOTE: need this to prevent deprecation notice from being inherited in Db, Collection
+      delete options.promiseLibrary;
     }
+    this.originalUri = url;
+    this.originalOptions = options;
+
+    this.options = parseOptions(url, options);
 
     // The internal state
     this.s = {
       url,
-      options: options || {},
-      dbCache: new Map(),
+      options: options ?? {},
       sessions: new Set(),
       readConcern: ReadConcern.fromOptions(options),
       writeConcern: WriteConcern.fromOptions(options),
+      readPreference: ReadPreference.fromOptions(options) ?? ReadPreference.primary,
+      bsonOptions: resolveBSONOptions(options),
       namespace: new MongoDBNamespace('admin'),
       logger: options?.logger ?? new Logger('MongoClient')
     };
@@ -295,7 +307,11 @@ export class MongoClient extends EventEmitter implements OperationParent {
   }
 
   get readPreference(): ReadPreference {
-    return ReadPreference.primary;
+    return this.s.readPreference;
+  }
+
+  get bsonOptions(): BSONSerializeOptions {
+    return this.s.bsonOptions;
   }
 
   get logger(): Logger {
@@ -350,7 +366,10 @@ export class MongoClient extends EventEmitter implements OperationParent {
         return cb();
       }
 
+      // clear out references to old topology
       const topology = this.topology;
+      this.topology = undefined;
+
       topology.close({ force }, err => {
         const autoEncrypter = topology.s.options.autoEncrypter;
         if (!autoEncrypter) {
@@ -365,16 +384,14 @@ export class MongoClient extends EventEmitter implements OperationParent {
 
   /**
    * Create a new Db instance sharing the current socket connections.
-   * Db instances are cached so performing db('db1') twice will return the same instance.
-   * You can control these behaviors with the options noListener and returnNonCachedInstance.
    *
    * @param dbName - The name of the database we want to use. If not provided, use database name from connection string.
    * @param options - Optional settings for Db construction
    */
   db(dbName: string): Db;
-  db(dbName: string, options: DbOptions & { returnNonCachedInstance?: boolean }): Db;
-  db(dbName: string, options?: DbOptions & { returnNonCachedInstance?: boolean }): Db {
-    options = options || {};
+  db(dbName: string, options: DbOptions): Db;
+  db(dbName: string, options?: DbOptions): Db {
+    options = options ?? {};
 
     // Default to db from connection string if not provided
     if (!dbName && this.s.options?.dbName) {
@@ -384,22 +401,14 @@ export class MongoClient extends EventEmitter implements OperationParent {
     // Copy the options and add out internal override of the not shared flag
     const finalOptions = Object.assign({}, this.s.options, options);
 
-    // Do we have the db in the cache already
-    const dbFromCache = this.s.dbCache.get(dbName);
-    if (dbFromCache && finalOptions.returnNonCachedInstance !== true) {
-      return dbFromCache;
-    }
-
     // If no topology throw an error message
     if (!this.topology) {
       throw new MongoError('MongoClient must be connected before calling MongoClient.prototype.db');
     }
 
     // Return the db object
-    const db = new Db(dbName, this.topology, finalOptions);
+    const db = new Db(this, dbName, finalOptions);
 
-    // Add the db to the cache
-    this.s.dbCache.set(dbName, db);
     // Return the database
     return db;
   }
@@ -425,11 +434,7 @@ export class MongoClient extends EventEmitter implements OperationParent {
     callback?: Callback<MongoClient>
   ): Promise<MongoClient> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
-
-    if (options && options.promiseLibrary) {
-      PromiseProvider.set(options.promiseLibrary);
-    }
+    options = options ?? {};
 
     // Create client
     const mongoClient = new MongoClient(url, options);
@@ -519,7 +524,7 @@ export class MongoClient extends EventEmitter implements OperationParent {
   watch(pipeline?: Document[]): ChangeStream;
   watch(pipeline?: Document[], options?: ChangeStreamOptions): ChangeStream {
     pipeline = pipeline || [];
-    options = options || {};
+    options = options ?? {};
 
     // Allow optionally not specifying a pipeline
     if (!Array.isArray(pipeline)) {
@@ -527,7 +532,7 @@ export class MongoClient extends EventEmitter implements OperationParent {
       pipeline = [];
     }
 
-    return new ChangeStream(this, pipeline, options);
+    return new ChangeStream(this, pipeline, resolveOptions(this, options));
   }
 
   /** Return the mongo client logger */
@@ -542,4 +547,92 @@ export class MongoClient extends EventEmitter implements OperationParent {
     if (typeof options === 'function') (callback = options), (options = {});
     if (typeof callback === 'function') callback(undefined, true);
   }, 'Multiple authentication is prohibited on a connected client, please only authenticate once per MongoClient');
+}
+
+/** @public */
+export type HostAddress =
+  | { host: string; type: 'srv' }
+  | { host: string; port: number; type: 'tcp' }
+  | { host: string; type: 'unix' };
+
+/**
+ * Mongo Client Options
+ * @public
+ */
+export interface MongoOptions
+  extends Required<BSONSerializeOptions>,
+    Omit<ConnectionOptions, 'port'>,
+    Omit<TLSConnectionOptions, 'port'>,
+    Required<
+      Pick<
+        MongoClientOptions,
+        | 'autoEncryption'
+        | 'compression'
+        | 'compressors'
+        | 'connectTimeoutMS'
+        | 'dbName'
+        | 'directConnection'
+        | 'driverInfo'
+        | 'forceServerObjectId'
+        | 'minHeartbeatFrequencyMS'
+        | 'heartbeatFrequencyMS'
+        | 'keepAlive'
+        | 'keepAliveInitialDelay'
+        | 'localThresholdMS'
+        | 'logger'
+        | 'maxIdleTimeMS'
+        | 'maxPoolSize'
+        | 'minPoolSize'
+        | 'monitorCommands'
+        | 'noDelay'
+        | 'numberOfRetries'
+        | 'pkFactory'
+        | 'promiseLibrary'
+        | 'raw'
+        | 'replicaSet'
+        | 'retryReads'
+        | 'retryWrites'
+        | 'serverSelectionTimeoutMS'
+        | 'socketTimeoutMS'
+        | 'tlsAllowInvalidCertificates'
+        | 'tlsAllowInvalidHostnames'
+        | 'tlsInsecure'
+        | 'waitQueueTimeoutMS'
+        | 'zlibCompressionLevel'
+      >
+    > {
+  hosts: HostAddress[];
+  srv: boolean;
+  credentials: MongoCredentials;
+  readPreference: ReadPreference;
+  readConcern: ReadConcern;
+  writeConcern: WriteConcern;
+
+  /**
+   * # NOTE ABOUT TLS Options
+   *
+   * If set TLS enabled, equivalent to setting the ssl option.
+   *
+   * ### Additional options:
+   *
+   * |    nodejs option     | MongoDB equivalent                                       | type                                   |
+   * |:---------------------|--------------------------------------------------------- |:---------------------------------------|
+   * | `ca`                 | `sslCA`, `tlsCAFile`                                     | `string \| Buffer \| Buffer[]`         |
+   * | `crl`                | `sslCRL`                                                 | `string \| Buffer \| Buffer[]`         |
+   * | `cert`               | `sslCert`, `tlsCertificateFile`, `tlsCertificateKeyFile` | `string \| Buffer \| Buffer[]`         |
+   * | `key`                | `sslKey`, `tlsCertificateKeyFile`                        | `string \| Buffer \| KeyObject[]`      |
+   * | `passphrase`         | `sslPass`, `tlsCertificateKeyFilePassword`               | `string`                               |
+   * | `rejectUnauthorized` | `sslValidate`                                            | `boolean`                              |
+   *
+   */
+  tls: boolean;
+
+  /**
+   * Turn these options into a reusable options dictionary
+   */
+  toJSON(): Record<string, any>;
+  /**
+   * Turn these options into a reusable connection URI
+   */
+  toURI(): string;
 }

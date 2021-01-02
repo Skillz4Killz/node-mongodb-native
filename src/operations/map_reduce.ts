@@ -5,24 +5,33 @@ import {
   decorateWithCollation,
   decorateWithReadConcern,
   isObject,
-  Callback
+  Callback,
+  maxWireVersion
 } from '../utils';
 import { ReadPreference, ReadPreferenceMode } from '../read_preference';
 import { CommandOperation, CommandOperationOptions } from './command';
 import type { Server } from '../sdam/server';
 import type { Collection } from '../collection';
-import type { Sort } from './find';
+import type { Sort } from '../sort';
 import { MongoError } from '../error';
 import type { ObjectId } from '../bson';
+import { Aspect, defineAspects } from './operation';
+import type { ClientSession } from '../sessions';
 
 const exclusionList = [
+  'explain',
   'readPreference',
+  'readConcern',
   'session',
   'bypassDocumentValidation',
-  'w',
-  'wtimeout',
-  'j',
   'writeConcern',
+  'raw',
+  'fieldsAsRaw',
+  'promoteLongs',
+  'promoteValues',
+  'promoteBuffers',
+  'serializeFunctions',
+  'ignoreUndefined',
   'scope' // this option is reformatted thus exclude the original
 ];
 
@@ -63,8 +72,12 @@ interface MapReduceStats {
   timing?: number;
 }
 
-/** @internal Run Map Reduce across a collection. Be aware that the inline option for out will return an array of results not a collection. */
-export class MapReduceOperation extends CommandOperation<MapReduceOptions, Document | Document[]> {
+/**
+ * Run Map Reduce across a collection. Be aware that the inline option for out will return an array of results not a collection.
+ * @internal
+ */
+export class MapReduceOperation extends CommandOperation<Document | Document[]> {
+  options: MapReduceOptions;
   collection: Collection;
   /** The mapping function. */
   map: MapFunction | string;
@@ -87,12 +100,13 @@ export class MapReduceOperation extends CommandOperation<MapReduceOptions, Docum
   ) {
     super(collection, options);
 
+    this.options = options ?? {};
     this.collection = collection;
     this.map = map;
     this.reduce = reduce;
   }
 
-  execute(server: Server, callback: Callback<Document | Document[]>): void {
+  execute(server: Server, session: ClientSession, callback: Callback<Document | Document[]>): void {
     const coll = this.collection;
     const map = this.map;
     const reduce = this.reduce;
@@ -118,13 +132,9 @@ export class MapReduceOperation extends CommandOperation<MapReduceOptions, Docum
 
     options = Object.assign({}, options);
 
-    // Ensure we have the right read preference inheritance
-    options.readPreference = ReadPreference.resolve(coll, options);
-
     // If we have a read preference and inline is not set as output fail hard
     if (
-      options.readPreference &&
-      options.readPreference.mode === ReadPreferenceMode.primary &&
+      this.readPreference.mode === ReadPreferenceMode.primary &&
       options.out &&
       (options.out as any).inline !== 1 &&
       options.out !== 'inline'
@@ -149,13 +159,21 @@ export class MapReduceOperation extends CommandOperation<MapReduceOptions, Docum
       return callback(err);
     }
 
+    if (this.explain && maxWireVersion(server) < 9) {
+      callback(new MongoError(`server ${server.name} does not support explain on mapReduce`));
+      return;
+    }
+
     // Execute command
-    super.executeCommand(server, mapCommandHash, (err, result) => {
+    super.executeCommand(server, session, mapCommandHash, (err, result) => {
       if (err) return callback(err);
       // Check if we have an error
       if (1 !== result.ok || result.err || result.errmsg) {
         return callback(new MongoError(result));
       }
+
+      // If an explain option was executed, don't process the server results
+      if (this.explain) return callback(undefined, result);
 
       // Create statistics value
       const stats: MapReduceStats = {};
@@ -181,7 +199,7 @@ export class MapReduceOperation extends CommandOperation<MapReduceOptions, Docum
         const doc = result.result;
         // Return a collection from another db
         const Db = loadDb();
-        collection = new Db(doc.db, coll.s.db.s.topology, coll.s.db.s.options).collection(
+        collection = new Db(coll.s.db.s.client, doc.db, coll.s.db.s.options).collection(
           doc.collection
         );
       } else {
@@ -220,3 +238,5 @@ function processScope(scope: Document | ObjectId) {
 
   return newScope;
 }
+
+defineAspects(MapReduceOperation, [Aspect.EXPLAINABLE]);

@@ -19,7 +19,7 @@ describe('Promote Values', function () {
     test: function (done) {
       var configuration = this.configuration;
       var client = configuration.newClient(configuration.writeConcernMax(), {
-        poolSize: 1,
+        maxPoolSize: 1,
         promoteValues: false
       });
 
@@ -228,13 +228,14 @@ describe('Promote Values', function () {
 
         var db = client.db(configuration.db);
 
-        db.collection('haystack').insert(docs, function (errInsert) {
+        db.collection('haystack').insertMany(docs, function (errInsert) {
           if (errInsert) throw errInsert;
           // change limit from 102 to 101 and this test passes.
           // seems to indicate that the promoteValues flag is used for the
           // initial find, but not for subsequent getMores
           db.collection('haystack')
             .find({}, { limit: 102, promoteValues: false })
+            .stream()
             .on('data', function (doc) {
               test.equal(typeof doc.int, 'object');
               test.equal(doc.int._bsontype, 'Int32');

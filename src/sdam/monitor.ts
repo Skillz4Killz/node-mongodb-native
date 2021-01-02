@@ -3,7 +3,8 @@ import {
   now,
   makeStateMachine,
   calculateDurationInMs,
-  makeInterruptableAsyncInterval
+  makeInterruptibleAsyncInterval,
+  ns
 } from '../utils';
 import { EventEmitter } from 'events';
 import { connect } from '../cmap/connect';
@@ -17,7 +18,7 @@ import {
 } from './events';
 
 import { Server } from './server';
-import type { InterruptableAsyncInterval, Callback } from '../utils';
+import type { InterruptibleAsyncInterval, Callback } from '../utils';
 import type { TopologyVersion } from './server_description';
 import type { ConnectionOptions } from '../cmap/connection';
 
@@ -64,7 +65,8 @@ export class Monitor extends EventEmitter {
   [kServer]: Server;
   [kConnection]?: Connection;
   [kCancellationToken]: EventEmitter;
-  [kMonitorId]?: InterruptableAsyncInterval;
+  /** @internal */
+  [kMonitorId]?: InterruptibleAsyncInterval;
   [kRTTPinger]?: RTTPinger;
 
   constructor(server: Server, options?: Partial<MonitorOptions>) {
@@ -111,6 +113,10 @@ export class Monitor extends EventEmitter {
 
     // ensure no authentication is used for monitoring
     delete connectOptions.credentials;
+    if (connectOptions.autoEncrypter) {
+      delete connectOptions.autoEncrypter;
+    }
+
     this.connectOptions = Object.freeze(connectOptions);
   }
 
@@ -122,7 +128,7 @@ export class Monitor extends EventEmitter {
     // start
     const heartbeatFrequencyMS = this.options.heartbeatFrequencyMS;
     const minHeartbeatFrequencyMS = this.options.minHeartbeatFrequencyMS;
-    this[kMonitorId] = makeInterruptableAsyncInterval(monitorServer(this), {
+    this[kMonitorId] = makeInterruptibleAsyncInterval(monitorServer(this), {
       interval: heartbeatFrequencyMS,
       minInterval: minHeartbeatFrequencyMS,
       immediate: true
@@ -138,7 +144,8 @@ export class Monitor extends EventEmitter {
   }
 
   reset(): void {
-    if (isInCloseState(this)) {
+    const topologyVersion = this[kServer].description.topologyVersion;
+    if (isInCloseState(this) || topologyVersion == null) {
       return;
     }
 
@@ -151,7 +158,7 @@ export class Monitor extends EventEmitter {
     // restart monitoring
     const heartbeatFrequencyMS = this.options.heartbeatFrequencyMS;
     const minHeartbeatFrequencyMS = this.options.minHeartbeatFrequencyMS;
-    this[kMonitorId] = makeInterruptableAsyncInterval(monitorServer(this), {
+    this[kMonitorId] = makeInterruptibleAsyncInterval(monitorServer(this), {
       interval: heartbeatFrequencyMS,
       minInterval: minHeartbeatFrequencyMS
     });
@@ -172,7 +179,6 @@ export class Monitor extends EventEmitter {
 }
 
 function resetMonitorState(monitor: Monitor) {
-  stateTransition(monitor, STATE_CLOSING);
   monitor[kMonitorId]?.stop();
   monitor[kMonitorId] = undefined;
 
@@ -216,7 +222,10 @@ function checkServer(monitor: Monitor, callback: Callback<Document>) {
         : { ismaster: true };
 
     const options = isAwaitable
-      ? { socketTimeout: connectTimeoutMS + maxAwaitTimeMS, exhaustAllowed: true }
+      ? {
+          socketTimeout: connectTimeoutMS ? connectTimeoutMS + maxAwaitTimeMS : 0,
+          exhaustAllowed: true
+        }
       : { socketTimeout: connectTimeoutMS };
 
     if (isAwaitable && monitor[kRTTPinger] == null) {
@@ -229,7 +238,7 @@ function checkServer(monitor: Monitor, callback: Callback<Document>) {
       );
     }
 
-    connection.command('admin.$cmd', cmd, options, (err, isMaster) => {
+    connection.command(ns('admin.$cmd'), cmd, options, (err, isMaster) => {
       if (err) {
         failureHandler(err);
         return;
@@ -425,7 +434,7 @@ function measureRoundTripTime(rttPinger: RTTPinger, options: RTTPingerOptions) {
     return;
   }
 
-  connection.command('admin.$cmd', { ismaster: 1 }, err => {
+  connection.command(ns('admin.$cmd'), { ismaster: 1 }, undefined, err => {
     if (err) {
       rttPinger[kConnection] = undefined;
       rttPinger[kRoundTripTime] = 0;

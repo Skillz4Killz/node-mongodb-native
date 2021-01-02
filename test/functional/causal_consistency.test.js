@@ -21,7 +21,7 @@ describe('Causal Consistency', function () {
       if (ignoredCommands.indexOf(event.commandName) === -1) test.commands.succeeded.push(event);
     });
 
-    test.client = this.configuration.newClient({ w: 1 }, { poolSize: 1, auto_reconnect: false });
+    test.client = this.configuration.newClient({ w: 1 }, { maxPoolSize: 1 });
     return test.client.connect();
   });
 
@@ -74,7 +74,8 @@ describe('Causal Consistency', function () {
           expect(test.commands.succeeded).to.have.length(1);
 
           const lastReply = test.commands.succeeded[0].reply;
-          expect(session.operationTime).to.equal(lastReply.operationTime);
+          const maybeLong = val => (typeof val.equals === 'function' ? val.toNumber() : val);
+          expect(maybeLong(session.operationTime)).to.equal(maybeLong(lastReply.operationTime));
         });
     }
   });
@@ -202,7 +203,7 @@ describe('Causal Consistency', function () {
 
         return db
           .collection('causal_test')
-          .insert({}, { session: session, w: 0 })
+          .insert({}, { session: session, writeConcern: { w: 0 } })
           .then(() => {
             expect(session.operationTime).to.be.null;
           });

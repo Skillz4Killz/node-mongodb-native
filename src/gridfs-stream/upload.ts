@@ -83,7 +83,7 @@ export class GridFSBucketWriteStream extends Writable {
   constructor(bucket: GridFSBucket, filename: string, options?: GridFSBucketWriteStreamOptions) {
     super();
 
-    options = options || {};
+    options = options ?? {};
     this.bucket = bucket;
     this.chunks = bucket.s._chunksCollection;
     this.filename = filename;
@@ -334,7 +334,7 @@ function checkDone(stream: GridFSBucketWriteStream, callback?: Callback): boolea
 }
 
 function checkIndexes(stream: GridFSBucketWriteStream, callback: Callback): void {
-  stream.files.findOne({}, { fields: { _id: 1 } }, (error, doc) => {
+  stream.files.findOne({}, { projection: { _id: 1 } }, (error, doc) => {
     if (error) {
       return callback(error);
     }
@@ -515,9 +515,11 @@ function doWrite(
 function getWriteOptions(stream: GridFSBucketWriteStream): WriteConcernOptions {
   const obj: WriteConcernOptions = {};
   if (stream.writeConcern) {
-    obj.w = stream.writeConcern.w;
-    obj.wtimeout = stream.writeConcern.wtimeout;
-    obj.j = stream.writeConcern.j;
+    obj.writeConcern = {
+      w: stream.writeConcern.w,
+      wtimeout: stream.writeConcern.wtimeout,
+      j: stream.writeConcern.j
+    };
   }
   return obj;
 }

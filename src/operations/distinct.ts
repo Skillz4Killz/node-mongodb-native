@@ -1,15 +1,21 @@
 import { Aspect, defineAspects } from './operation';
 import { CommandOperation, CommandOperationOptions } from './command';
-import { decorateWithCollation, decorateWithReadConcern, Callback } from '../utils';
+import { decorateWithCollation, decorateWithReadConcern, Callback, maxWireVersion } from '../utils';
 import type { Document } from '../bson';
 import type { Server } from '../sdam/server';
 import type { Collection } from '../collection';
+import { MongoError } from '../error';
+import type { ClientSession } from '../sessions';
 
 /** @public */
 export type DistinctOptions = CommandOperationOptions;
 
-/** @internal Return a list of distinct values for the given key across a collection. */
-export class DistinctOperation extends CommandOperation<DistinctOptions, Document[]> {
+/**
+ * Return a list of distinct values for the given key across a collection.
+ * @internal
+ */
+export class DistinctOperation extends CommandOperation<Document[]> {
+  options: DistinctOptions;
   collection: Collection;
   /** Field of the document to find distinct values for. */
   key: string;
@@ -27,12 +33,13 @@ export class DistinctOperation extends CommandOperation<DistinctOptions, Documen
   constructor(collection: Collection, key: string, query: Document, options?: DistinctOptions) {
     super(collection, options);
 
+    this.options = options ?? {};
     this.collection = collection;
     this.key = key;
     this.query = query;
   }
 
-  execute(server: Server, callback: Callback<Document[]>): void {
+  execute(server: Server, session: ClientSession, callback: Callback<Document[]>): void {
     const coll = this.collection;
     const key = this.key;
     const query = this.query;
@@ -60,15 +67,20 @@ export class DistinctOperation extends CommandOperation<DistinctOptions, Documen
       return callback(err);
     }
 
-    super.executeCommand(server, cmd, (err, result) => {
+    if (this.explain && maxWireVersion(server) < 4) {
+      callback(new MongoError(`server ${server.name} does not support explain on distinct`));
+      return;
+    }
+
+    super.executeCommand(server, session, cmd, (err, result) => {
       if (err) {
         callback(err);
         return;
       }
 
-      callback(undefined, this.options.fullResponse ? result : result.values);
+      callback(undefined, this.options.fullResponse || this.explain ? result : result.values);
     });
   }
 }
 
-defineAspects(DistinctOperation, [Aspect.READ_OPERATION, Aspect.RETRYABLE]);
+defineAspects(DistinctOperation, [Aspect.READ_OPERATION, Aspect.RETRYABLE, Aspect.EXPLAINABLE]);

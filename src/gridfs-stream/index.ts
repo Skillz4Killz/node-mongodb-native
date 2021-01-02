@@ -6,15 +6,16 @@ import {
   GridFSBucketReadStreamOptionsWithRevision
 } from './download';
 import { GridFSBucketWriteStream, GridFSBucketWriteStreamOptions, TFileId } from './upload';
-import { executeLegacyOperation, Callback } from '../utils';
+import { executeLegacyOperation, Callback, getTopology } from '../utils';
 import { WriteConcernOptions, WriteConcern } from '../write_concern';
 import type { Document } from '../bson';
 import type { Db } from '../db';
 import type { ReadPreference } from '../read_preference';
 import type { Collection } from '../collection';
-import type { Cursor } from './../cursor/cursor';
-import type { FindOptions, Sort } from './../operations/find';
+import type { FindOptions } from './../operations/find';
+import type { Sort } from '../sort';
 import type { Logger } from '../logger';
+import type { FindCursor } from '../cursor/find_cursor';
 
 const DEFAULT_GRIDFS_BUCKET_OPTIONS: {
   bucketName: string;
@@ -133,15 +134,15 @@ export class GridFSBucket extends EventEmitter {
   delete(id: TFileId): Promise<undefined>;
   delete(id: TFileId, callback: Callback<void>): void;
   delete(id: TFileId, callback?: Callback<void>): Promise<undefined> | void {
-    return executeLegacyOperation(this.s.db.s.topology, _delete, [this, id, callback], {
+    return executeLegacyOperation(getTopology(this.s.db), _delete, [this, id, callback], {
       skipSessions: true
     });
   }
 
   /** Convenience wrapper around find on the files collection */
-  find(filter: Document, options?: FindOptions): Cursor {
+  find(filter: Document, options?: FindOptions): FindCursor {
     filter = filter || {};
-    options = options || {};
+    options = options ?? {};
     return this.s._filesCollection.find(filter, options);
   }
 
@@ -184,7 +185,7 @@ export class GridFSBucket extends EventEmitter {
   rename(id: TFileId, filename: string): Promise<void>;
   rename(id: TFileId, filename: string, callback: Callback<void>): void;
   rename(id: TFileId, filename: string, callback?: Callback<void>): Promise<void> | void {
-    return executeLegacyOperation(this.s.db.s.topology, _rename, [this, id, filename, callback], {
+    return executeLegacyOperation(getTopology(this.s.db), _rename, [this, id, filename, callback], {
       skipSessions: true
     });
   }
@@ -193,7 +194,7 @@ export class GridFSBucket extends EventEmitter {
   drop(): Promise<void>;
   drop(callback: Callback<void>): void;
   drop(callback?: Callback<void>): Promise<void> | void {
-    return executeLegacyOperation(this.s.db.s.topology, _drop, [this, callback], {
+    return executeLegacyOperation(getTopology(this.s.db), _drop, [this, callback], {
       skipSessions: true
     });
   }
@@ -238,9 +239,11 @@ function _rename(
     if (error) {
       return callback(error);
     }
-    if (!res?.result.n) {
+
+    if (!res?.matchedCount) {
       return callback(new MongoError(`File with id ${id} not found`));
     }
+
     return callback();
   });
 }

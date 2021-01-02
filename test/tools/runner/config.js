@@ -33,7 +33,7 @@ class NativeConfiguration {
     );
 
     this.writeConcern = function () {
-      return { w: 1 };
+      return { writeConcern: { w: 1 } };
     };
   }
 
@@ -71,7 +71,7 @@ class NativeConfiguration {
   }
 
   newClient(dbOptions, serverOptions) {
-    // support MongoClient contructor form (url, options) for `newClient`
+    // support MongoClient constructor form (url, options) for `newClient`
     if (typeof dbOptions === 'string') {
       return new MongoClient(
         dbOptions,
@@ -80,11 +80,7 @@ class NativeConfiguration {
     }
 
     dbOptions = dbOptions || {};
-    serverOptions = Object.assign(
-      {},
-      { haInterval: 100, minHeartbeatFrequencyMS: 100 },
-      serverOptions
-    );
+    serverOptions = Object.assign({}, { minHeartbeatFrequencyMS: 100 }, serverOptions);
 
     // Fall back
     let dbHost = (serverOptions && serverOptions.host) || this.options.host;
@@ -106,7 +102,13 @@ class NativeConfiguration {
     }
 
     if (this.options.replicaSet) {
-      Object.assign(dbOptions, { replicaSet: this.options.replicaSet, auto_reconnect: false });
+      Object.assign(dbOptions, { replicaSet: this.options.replicaSet });
+    }
+
+    // Flatten any options nested under `writeConcern` before we make the connection string
+    if (dbOptions.writeConcern) {
+      Object.assign(dbOptions, dbOptions.writeConcern);
+      delete dbOptions.writeConcern;
     }
 
     const urlOptions = {
@@ -127,6 +129,9 @@ class NativeConfiguration {
       urlOptions.auth = auth;
     }
 
+    // TODO(NODE-2704): Uncomment this, unix socket related issues
+    // Reflect.deleteProperty(serverOptions, 'host');
+    // Reflect.deleteProperty(serverOptions, 'port');
     const connectionString = url.format(urlOptions);
     return new MongoClient(connectionString, serverOptions);
   }
@@ -148,7 +153,7 @@ class NativeConfiguration {
 
     const query = {};
     if (this.options.replicaSet) {
-      Object.assign(query, { replicaSet: this.options.replicaSet, auto_reconnect: false });
+      Object.assign(query, { replicaSet: this.options.replicaSet });
     }
 
     let multipleHosts;
@@ -211,10 +216,10 @@ class NativeConfiguration {
 
   writeConcernMax() {
     if (this.topologyType !== TopologyType.Single) {
-      return { w: 'majority', wtimeout: 30000 };
+      return { writeConcern: { w: 'majority', wtimeout: 30000 } };
     }
 
-    return { w: 1 };
+    return { writeConcern: { w: 1 } };
   }
 
   // Accessors and methods Client-Side Encryption

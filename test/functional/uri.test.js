@@ -22,20 +22,17 @@ describe('URI', function () {
         expect(err).to.not.exist;
         var db = client.db(self.configuration.db);
 
-        db.collection('mongoclient_test').update({ a: 1 }, { b: 1 }, { upsert: true }, function (
-          err,
-          result
-        ) {
-          expect(err).to.not.exist;
-
-          if (result) {
-            expect(result.result.ok).to.equal(1);
-          } else {
-            expect(result).to.not.exist;
+        db.collection('mongoclient_test').update(
+          { a: 1 },
+          { $set: { b: 1 } },
+          { upsert: true },
+          function (err, result) {
+            expect(err).to.not.exist;
+            expect(result).to.exist;
+            expect(result).property('acknowledged').to.be.false;
+            client.close(done);
           }
-
-          client.close(done);
-        });
+        );
       });
     }
   });
@@ -50,9 +47,7 @@ describe('URI', function () {
         return done();
       }
 
-      const client = this.configuration.newClient(
-        'mongodb://%2Ftmp%2Fmongodb-27017.sock?safe=false'
-      );
+      const client = this.configuration.newClient('mongodb://%2Ftmp%2Fmongodb-27017.sock');
 
       client.connect(function (err, client) {
         expect(err).to.not.exist;
@@ -84,9 +79,7 @@ describe('URI', function () {
     test: function (done) {
       var self = this;
       const configuration = this.configuration;
-      const client = configuration.newClient('mongodb://localhost:27017/integration_tests', {
-        native_parser: true
-      });
+      const client = configuration.newClient('mongodb://localhost:27017/integration_tests');
 
       client.connect(function (err, client) {
         expect(err).to.not.exist;
@@ -103,24 +96,23 @@ describe('URI', function () {
             encodeURIComponent(pass) +
             '@localhost:27017/integration_tests';
 
-          const aclient = configuration.newClient(uri, { native_parser: true });
-          aclient.connect(function (err, aclient) {
+          configuration.newClient(uri).connect(function (err, c) {
             expect(err).to.not.exist;
 
-            client.close(() => aclient.close(done));
+            c.close(() => client.close(done));
           });
         });
       });
     }
   });
 
-  it('should correctly translate uri options using new parser', {
+  it('should correctly translate uri options', {
     metadata: { requires: { topology: 'replicaset' } },
     test: function (done) {
       const config = this.configuration;
       const uri = `mongodb://${config.host}:${config.port}/${config.db}?replicaSet=${config.replicasetName}`;
 
-      const client = this.configuration.newClient(uri, { useNewUrlParser: true });
+      const client = this.configuration.newClient(uri);
       client.connect((err, client) => {
         expect(err).to.not.exist;
         expect(client).to.exist;
@@ -130,10 +122,10 @@ describe('URI', function () {
     }
   });
 
-  it('should generate valid credentials with X509 and the new parser', {
+  it('should generate valid credentials with X509', {
     metadata: { requires: { topology: 'single' } },
     test: function (done) {
-      function validateConnect(options /*, callback */) {
+      function validateConnect(options) {
         expect(options).to.have.property('credentials');
         expect(options.credentials.mechanism).to.eql('MONGODB-X509');
 
@@ -144,7 +136,7 @@ describe('URI', function () {
       const topologyPrototype = Topology.prototype;
       const connectStub = sinon.stub(topologyPrototype, 'connect').callsFake(validateConnect);
       const uri = 'mongodb://some-hostname/test?ssl=true&authMechanism=MONGODB-X509&replicaSet=rs0';
-      const client = this.configuration.newClient(uri, { useNewUrlParser: true });
+      const client = this.configuration.newClient(uri);
       client.connect();
     }
   });

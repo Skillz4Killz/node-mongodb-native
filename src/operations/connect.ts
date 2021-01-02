@@ -2,8 +2,8 @@ import * as fs from 'fs';
 import { Logger } from '../logger';
 import { ReadPreference } from '../read_preference';
 import { MongoError, AnyError } from '../error';
-import { Topology, TopologyOptions, ServerAddress } from '../sdam/topology';
-import { parseConnectionString } from '../connection_string';
+import { ServerAddress, Topology, TopologyOptions } from '../sdam/topology';
+import { AUTH_MECHANISMS, parseConnectionString } from '../connection_string';
 import { ReadConcern } from '../read_concern';
 import { emitDeprecationWarning, Callback } from '../utils';
 import { CMAP_EVENT_NAMES } from '../cmap/events';
@@ -12,19 +12,9 @@ import * as BSON from '../bson';
 import type { Document } from '../bson';
 import type { MongoClient } from '../mongo_client';
 import { ConnectionOptions, Connection } from '../cmap/connection';
-import type { AuthMechanism } from '../cmap/auth/defaultAuthProviders';
+import { AuthMechanism, AuthMechanismId } from '../cmap/auth/defaultAuthProviders';
 import { Server } from '../sdam/server';
-
-const VALID_AUTH_MECHANISMS = new Set([
-  'DEFAULT',
-  'PLAIN',
-  'GSSAPI',
-  'MONGODB-CR',
-  'MONGODB-X509',
-  'MONGODB-AWS',
-  'SCRAM-SHA-1',
-  'SCRAM-SHA-256'
-]);
+import { WRITE_CONCERN_KEYS } from '../write_concern';
 
 const validOptionNames = [
   'poolSize',
@@ -51,14 +41,11 @@ const validOptionNames = [
   'acceptableLatencyMS',
   'connectWithNoPrimary',
   'authSource',
-  'w',
-  'wtimeout',
-  'j',
+  'writeConcern',
   'forceServerObjectId',
   'serializeFunctions',
   'ignoreUndefined',
   'raw',
-  'bufferMaxEntries',
   'readPreference',
   'pkFactory',
   'promiseLibrary',
@@ -75,10 +62,11 @@ const validOptionNames = [
   'appname',
   'auth',
   'user',
+  'username',
+  'host',
   'password',
   'authMechanism',
   'compression',
-  'fsync',
   'readPreferenceTags',
   'numberOfRetries',
   'auto_reconnect',
@@ -197,6 +185,11 @@ export function connect(
     throw new Error('no callback function provided');
   }
 
+  // If a connection already been established, we can terminate early
+  if (mongoClient.topology && mongoClient.topology.isConnected()) {
+    return callback(undefined, mongoClient);
+  }
+
   let didRequestAuthentication = false;
   const logger = new Logger('MongoClient', options);
 
@@ -211,7 +204,7 @@ export function connect(
     const finalOptions = createUnifiedOptions(urlOptions, options);
 
     // Check if we have connection and socket timeout set
-    if (finalOptions.socketTimeoutMS == null) finalOptions.socketTimeoutMS = 360000;
+    if (finalOptions.socketTimeoutMS == null) finalOptions.socketTimeoutMS = 0;
     if (finalOptions.connectTimeoutMS == null) finalOptions.connectTimeoutMS = 10000;
     if (finalOptions.retryWrites == null) finalOptions.retryWrites = true;
     if (finalOptions.useRecoveryToken == null) finalOptions.useRecoveryToken = true;
@@ -219,12 +212,6 @@ export function connect(
 
     if (finalOptions.db_options && finalOptions.db_options.auth) {
       delete finalOptions.db_options.auth;
-    }
-
-    // `journal` should be translated to `j` for the driver
-    if (finalOptions.journal != null) {
-      finalOptions.j = finalOptions.journal;
-      finalOptions.journal = undefined;
     }
 
     // resolve tls options if needed
@@ -417,7 +404,9 @@ function createUnifiedOptions(finalOptions: any, options: any) {
   const noMerge = ['readconcern', 'compression', 'autoencryption'];
 
   for (const name in options) {
-    if (noMerge.indexOf(name.toLowerCase()) !== -1) {
+    if (name === 'writeConcern') {
+      finalOptions[name] = { ...finalOptions[name], ...options[name] };
+    } else if (noMerge.indexOf(name.toLowerCase()) !== -1) {
       finalOptions[name] = options[name];
     } else if (childOptions.indexOf(name.toLowerCase()) !== -1) {
       finalOptions = mergeOptions(finalOptions, options[name], false);
@@ -442,7 +431,7 @@ export interface GenerateCredentialsOptions {
   authSource: string;
   authdb: string;
   dbName: string;
-  authMechanism: AuthMechanism;
+  authMechanism: AuthMechanismId;
   authMechanismProperties: Document;
 }
 
@@ -459,16 +448,16 @@ function generateCredentials(
   const source = options.authSource || options.authdb || options.dbName;
 
   // authMechanism
-  const authMechanismRaw = options.authMechanism || 'DEFAULT';
-  const authMechanism = authMechanismRaw.toUpperCase();
+  const authMechanismRaw = options.authMechanism || AuthMechanism.MONGODB_DEFAULT;
+  const mechanism = authMechanismRaw.toUpperCase() as AuthMechanismId;
   const mechanismProperties = options.authMechanismProperties;
 
-  if (!VALID_AUTH_MECHANISMS.has(authMechanism)) {
-    throw new MongoError(`authentication mechanism ${authMechanism} not supported`);
+  if (!AUTH_MECHANISMS.has(mechanism)) {
+    throw new MongoError(`authentication mechanism ${mechanism} not supported`);
   }
 
   return new MongoCredentials({
-    mechanism: authMechanism as AuthMechanism,
+    mechanism,
     mechanismProperties,
     source,
     username,
@@ -556,10 +545,21 @@ function transformUrlOptions(connStrOptions: any) {
 
   if (connStrOpts.wTimeoutMS) {
     connStrOpts.wtimeout = connStrOpts.wTimeoutMS;
+    connStrOpts.wTimeoutMS = undefined;
   }
 
   if (connStrOptions.srvHost) {
     connStrOpts.srvHost = connStrOptions.srvHost;
+  }
+
+  // Any write concern options from the URL will be top-level, so we manually
+  // move them options under `object.writeConcern`
+  for (const key of WRITE_CONCERN_KEYS) {
+    if (connStrOpts[key] !== undefined) {
+      if (connStrOpts.writeConcern === undefined) connStrOpts.writeConcern = {};
+      connStrOpts.writeConcern[key] = connStrOpts[key];
+      connStrOpts[key] = undefined;
+    }
   }
 
   return connStrOpts;
@@ -582,7 +582,7 @@ function translateOptions(options: any) {
   }
 
   // Set the socket and connection timeouts
-  if (options.socketTimeoutMS == null) options.socketTimeoutMS = 360000;
+  if (options.socketTimeoutMS == null) options.socketTimeoutMS = 0;
   if (options.connectTimeoutMS == null) options.connectTimeoutMS = 10000;
 
   const translations = {

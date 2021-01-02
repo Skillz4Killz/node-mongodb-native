@@ -4,9 +4,9 @@ const fs = require('fs');
 const chai = require('chai');
 const expect = chai.expect;
 const { EJSON } = require('bson');
+const { isRecord } = require('../../../src/utils');
 const TestRunnerContext = require('./context').TestRunnerContext;
 const resolveConnectionString = require('./utils').resolveConnectionString;
-const hasOwnProperty = Object.prototype.hasOwnProperty;
 
 // Promise.try alternative https://stackoverflow.com/questions/60624081/promise-try-without-bluebird/60624164?noredirect=1#comment107255389_60624164
 function promiseTry(callback) {
@@ -29,13 +29,18 @@ function escape(string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function isPlainObject(value) {
-  return value !== null && typeof value === 'object' && Array.isArray(value) === false;
-}
-
 function translateClientOptions(options) {
   Object.keys(options).forEach(key => {
-    if (key === 'readConcernLevel') {
+    if (['j', 'journal', 'fsync', 'wtimeout', 'wtimeoutms'].indexOf(key) >= 0) {
+      throw new Error(
+        `Unhandled write concern key needs to be added to options.writeConcern: ${key}`
+      );
+    }
+
+    if (key === 'w') {
+      options.writeConcern = { w: options.w };
+      delete options[key];
+    } else if (key === 'readConcernLevel') {
       options.readConcern = { level: options.readConcernLevel };
       delete options[key];
     } else if (key === 'autoEncryptOpts') {
@@ -127,15 +132,13 @@ function generateTopologyTests(testSuites, testContext, filter) {
         test: function () {
           beforeEach(() => prepareDatabaseForSuite(testSuite, testContext));
           afterEach(() => testContext.cleanupAfterSuite());
-
           testSuite.tests.forEach(spec => {
             it(spec.description, function () {
               if (
                 spec.skipReason ||
                 (filter && typeof filter === 'function' && !filter(spec, this.configuration))
               ) {
-                this.skip();
-                return;
+                return this.skip();
               }
 
               let testPromise = Promise.resolve();
@@ -151,7 +154,6 @@ function generateTopologyTests(testSuites, testContext, filter) {
               if (spec.failPoint) {
                 testPromise = testPromise.then(() => testContext.disableFailPoint(spec.failPoint));
               }
-
               return testPromise.then(() => validateOutcome(spec, testContext));
             });
           });
@@ -167,6 +169,9 @@ function prepareDatabaseForSuite(suite, context) {
   context.collectionName = suite.collection_name || 'spec_collection';
 
   const db = context.sharedClient.db(context.dbName);
+
+  if (context.skipPrepareDatabase) return Promise.resolve();
+
   const setupPromise = db
     .admin()
     .command({ killAllSessions: [] })
@@ -184,7 +189,7 @@ function prepareDatabaseForSuite(suite, context) {
 
   const coll = db.collection(context.collectionName);
   return setupPromise
-    .then(() => coll.drop({ writeConcern: 'majority' }))
+    .then(() => coll.drop({ writeConcern: { w: 'majority' } }))
     .catch(err => {
       if (!err.message.match(/ns not found/)) throw err;
     })
@@ -192,7 +197,7 @@ function prepareDatabaseForSuite(suite, context) {
       if (suite.key_vault_data) {
         const dataKeysCollection = context.sharedClient.db('keyvault').collection('datakeys');
         return dataKeysCollection
-          .drop({ w: 'majority' })
+          .drop({ writeConcern: { w: 'majority' } })
           .catch(err => {
             if (!err.message.match(/ns not found/)) {
               throw err;
@@ -200,13 +205,15 @@ function prepareDatabaseForSuite(suite, context) {
           })
           .then(() => {
             if (suite.key_vault_data.length) {
-              return dataKeysCollection.insertMany(suite.key_vault_data, { w: 'majority' });
+              return dataKeysCollection.insertMany(suite.key_vault_data, {
+                writeConcern: { w: 'majority' }
+              });
             }
           });
       }
     })
     .then(() => {
-      const options = { w: 'majority' };
+      const options = { writeConcern: { w: 'majority' } };
       if (suite.json_schema) {
         options.validator = { $jsonSchema: suite.json_schema };
       }
@@ -215,7 +222,7 @@ function prepareDatabaseForSuite(suite, context) {
     })
     .then(() => {
       if (suite.data && Array.isArray(suite.data) && suite.data.length > 0) {
-        return coll.insertMany(suite.data, { w: 'majority' });
+        return coll.insertMany(suite.data, { writeConcern: { w: 'majority' } });
       }
     })
     .then(() => {
@@ -281,12 +288,21 @@ function runTestSuiteTest(configuration, spec, context) {
     )
   );
 
-  const url = resolveConnectionString(configuration, spec);
+  const url = resolveConnectionString(configuration, spec, context);
   const client = configuration.newClient(url, clientOptions);
   CMAP_EVENTS.forEach(eventName => client.on(eventName, event => context.cmapEvents.push(event)));
   SDAM_EVENTS.forEach(eventName => client.on(eventName, event => context.sdamEvents.push(event)));
+
+  let skippedInitialPing = false;
   client.on('commandStarted', event => {
     if (IGNORED_COMMANDS.has(event.commandName)) {
+      return;
+    }
+
+    // If credentials were provided, then the Topology sends an initial `ping` command
+    // that we want to skip
+    if (event.commandName === 'ping' && client.topology.s.credentials && !skippedInitialPing) {
+      skippedInitialPing = true;
       return;
     }
 
@@ -307,22 +323,24 @@ function runTestSuiteTest(configuration, spec, context) {
 
     let session0, session1;
     let savedSessionData;
-    try {
-      session0 = client.startSession(
-        Object.assign({}, sessionOptions, parseSessionOptions(spec.sessionOptions.session0))
-      );
-      session1 = client.startSession(
-        Object.assign({}, sessionOptions, parseSessionOptions(spec.sessionOptions.session1))
-      );
 
-      savedSessionData = {
-        session0: JSON.parse(EJSON.stringify(session0.id)),
-        session1: JSON.parse(EJSON.stringify(session1.id))
-      };
-    } catch (err) {
-      // ignore
+    if (context.useSessions) {
+      try {
+        session0 = client.startSession(
+          Object.assign({}, sessionOptions, parseSessionOptions(spec.sessionOptions.session0))
+        );
+        session1 = client.startSession(
+          Object.assign({}, sessionOptions, parseSessionOptions(spec.sessionOptions.session1))
+        );
+
+        savedSessionData = {
+          session0: JSON.parse(EJSON.stringify(session0.id)),
+          session1: JSON.parse(EJSON.stringify(session1.id))
+        };
+      } catch (err) {
+        // ignore
+      }
     }
-
     // enable to see useful APM debug information at the time of actual test run
     // displayCommands = true;
 
@@ -401,13 +419,13 @@ function validateExpectations(commandEvents, spec, savedSessionData) {
 }
 
 function normalizeCommandShapes(commands) {
-  return commands.map(command =>
+  return commands.map(def =>
     JSON.parse(
       EJSON.stringify(
         {
-          command: command.command,
-          commandName: command.command_name ? command.command_name : command.commandName,
-          databaseName: command.database_name ? command.database_name : command.databaseName
+          command: def.command,
+          commandName: def.command_name || def.commandName || Object.keys(def.command)[0],
+          databaseName: def.database_name ? def.database_name : def.databaseName
         },
         { relaxed: true }
       )
@@ -416,7 +434,7 @@ function normalizeCommandShapes(commands) {
 }
 
 function extractCrudResult(result, operation) {
-  if (Array.isArray(result) || !isPlainObject(result)) {
+  if (Array.isArray(result) || !isRecord(result)) {
     return result;
   }
 
@@ -430,14 +448,7 @@ function extractCrudResult(result, operation) {
     return result.value;
   }
 
-  return Object.keys(operation.result).reduce((crudResult, key) => {
-    if (hasOwnProperty.call(result, key) && result[key] != null) {
-      // FIXME(major): update crud results are broken and need to be changed
-      crudResult[key] = key === 'upsertedId' ? result[key]._id : result[key];
-    }
-
-    return crudResult;
-  }, {});
+  return operation.result;
 }
 
 function isTransactionCommand(command) {

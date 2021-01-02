@@ -12,10 +12,7 @@ const test = {
   commands: { started: [], succeeded: [] },
   setup: function (config) {
     this.commands = { started: [], succeeded: [] };
-    this.client = config.newClient(
-      { w: 1 },
-      { poolSize: 1, auto_reconnect: false, monitorCommands: true }
-    );
+    this.client = config.newClient({ w: 1 }, { maxPoolSize: 1, monitorCommands: true });
 
     this.client.on('commandStarted', event => {
       if (ignoredCommands.indexOf(event.commandName) === -1) {
@@ -33,7 +30,7 @@ const test = {
   }
 };
 
-describe('Sessions', function () {
+describe('Sessions - functional', function () {
   before(function () {
     return setupDatabase(this.configuration);
   });
@@ -116,14 +113,16 @@ describe('Sessions', function () {
 
           return client
             .withSession(testCase.operation(client))
-            .catch(() => expect(client.topology.s.sessionPool.sessions).to.have.length(1))
-            .then(() => expect(client.topology.s.sessionPool.sessions).to.have.length(1))
+            .then(
+              () => expect(client.topology.s.sessionPool.sessions).to.have.length(1),
+              () => expect(client.topology.s.sessionPool.sessions).to.have.length(1)
+            )
             .then(() => client.close())
             .then(() => {
               // verify that the `endSessions` command was sent
               const lastCommand = test.commands.started[test.commands.started.length - 1];
               expect(lastCommand.commandName).to.equal('endSessions');
-              expect(client.topology.s.sessionPool.sessions).to.have.length(0);
+              expect(client.topology).to.not.exist;
             });
         });
       });
@@ -143,7 +142,7 @@ describe('Sessions', function () {
             // verify that the `endSessions` command was sent
             const lastCommand = test.commands.started[test.commands.started.length - 1];
             expect(lastCommand.commandName).to.equal('endSessions');
-            expect(client.topology.s.sessionPool.sessions).to.have.length(0);
+            expect(client.topology).to.not.exist;
           });
       });
     }
@@ -200,7 +199,7 @@ describe('Sessions', function () {
   context('unacknowledged writes', () => {
     it('should not include session for unacknowledged writes', {
       metadata: { requires: { topology: 'single', mongodb: '>=3.6.0' } },
-      test: withMonitoredClient('insert', { clientOptions: { w: 0 } }, function (
+      test: withMonitoredClient('insert', { clientOptions: { writeConcern: { w: 0 } } }, function (
         client,
         events,
         done
@@ -219,7 +218,7 @@ describe('Sessions', function () {
     });
     it('should throw error with explicit session', {
       metadata: { requires: { topology: 'replicaset', mongodb: '>=3.6.0' } },
-      test: withMonitoredClient('insert', { clientOptions: { w: 0 } }, function (
+      test: withMonitoredClient('insert', { clientOptions: { writeConcern: { w: 0 } } }, function (
         client,
         events,
         done

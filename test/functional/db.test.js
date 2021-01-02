@@ -1,6 +1,6 @@
 'use strict';
 var test = require('./shared').assert;
-var setupDatabase = require('./shared').setupDatabase;
+const { setupDatabase, withClient } = require(`./shared`);
 const { expect } = require('chai');
 const { Db } = require('../../src');
 
@@ -14,54 +14,23 @@ describe('Db', function () {
       requires: { topology: ['single', 'replicaset', 'sharded', 'ssl', 'heap', 'wiredtiger'] }
     },
 
-    test: function (done) {
-      // Assert rename
-      try {
-        new Db(5);
-      } catch (err) {
-        test.ok(err instanceof Error);
-        test.equal('database name must be a string', err.message);
-      }
-
-      try {
-        new Db('');
-      } catch (err) {
-        test.ok(err instanceof Error);
-        test.equal('database name cannot be the empty string', err.message);
-      }
-
-      try {
-        new Db('te$t', function () {});
-      } catch (err) {
-        test.equal("database names cannot contain the character '$'", err.message);
-      }
-
-      try {
-        new Db('.test', function () {});
-      } catch (err) {
-        test.equal("database names cannot contain the character '.'", err.message);
-      }
-
-      try {
-        new Db('\\test', function () {});
-      } catch (err) {
-        test.equal("database names cannot contain the character '\\'", err.message);
-      }
-
-      try {
-        new Db('\\test', function () {});
-      } catch (err) {
-        test.equal("database names cannot contain the character '\\'", err.message);
-      }
-
-      try {
-        new Db('test test', function () {});
-      } catch (err) {
-        test.equal("database names cannot contain the character ' '", err.message);
-      }
-
+    test: withClient((client, done) => {
+      expect(() => new Db(client, 5)).to.throw('database name must be a string');
+      expect(() => new Db(client, '')).to.throw('database name cannot be the empty string');
+      expect(() => new Db(client, 'te$t')).to.throw(
+        "database names cannot contain the character '$'"
+      );
+      expect(() => new Db(client, '.test', function () {})).to.throw(
+        "database names cannot contain the character '.'"
+      );
+      expect(() => new Db(client, '\\test', function () {})).to.throw(
+        "database names cannot contain the character '\\'"
+      );
+      expect(() => new Db(client, 'test test', function () {})).to.throw(
+        "database names cannot contain the character ' '"
+      );
       done();
-    }
+    })
   });
 
   it('should not call callback twice on collection() with callback', {
@@ -71,10 +40,7 @@ describe('Db', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), {
-        poolSize: 1,
-        auto_reconnect: true
-      });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         expect(err).to.not.exist;
         var db = client.db(configuration.db);
@@ -108,10 +74,7 @@ describe('Db', function () {
 
     test: function (done) {
       let configuration = this.configuration;
-      let client = configuration.newClient(configuration.writeConcernMax(), {
-        poolSize: 1,
-        auto_reconnect: true
-      });
+      let client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
 
       client.connect(function (err, client) {
         let callbackCalled = 0;
@@ -140,7 +103,6 @@ describe('Db', function () {
     test: function (done) {
       var configuration = this.configuration;
       var fs_client = configuration.newClient('mongodb://127.0.0.1:25117/test', {
-        auto_reconnect: false,
         serverSelectionTimeoutMS: 10
       });
 
@@ -158,7 +120,7 @@ describe('Db', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var _db = client.db('nonexistingdb');
 
@@ -179,7 +141,7 @@ describe('Db', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(err => {
         expect(err).to.not.exist;
 
@@ -201,8 +163,7 @@ describe('Db', function () {
     test: function (done) {
       var configuration = this.configuration;
       var client = configuration.newClient(`mongodb://127.0.0.1:27088/test`, {
-        auto_reconnect: false,
-        poolSize: 4,
+        maxPoolSize: 4,
         serverSelectionTimeoutMS: 10
       });
 
@@ -225,7 +186,7 @@ describe('Db', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         expect(err).to.not.exist;
 
@@ -254,7 +215,7 @@ describe('Db', function () {
     test: function (done) {
       var configuration = this.configuration;
 
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         expect(err).to.not.exist;
 
@@ -291,7 +252,7 @@ describe('Db', function () {
     test: function (done) {
       var configuration = this.configuration;
 
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         expect(err).to.not.exist;
 
@@ -328,7 +289,7 @@ describe('Db', function () {
     test: function (done) {
       var configuration = this.configuration;
 
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         expect(err).to.not.exist;
 
@@ -375,7 +336,7 @@ describe('Db', function () {
     test: function (done) {
       var configuration = this.configuration;
 
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         expect(err).to.not.exist;
 

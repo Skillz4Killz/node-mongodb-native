@@ -1,12 +1,13 @@
 import { Readable } from 'stream';
 import type { AnyError } from '../error';
 import type { Document } from '../bson';
-import type { FindOptions, Sort } from '../operations/find';
-import type { Cursor } from './../cursor/cursor';
+import type { FindOptions } from '../operations/find';
+import type { Sort } from '../sort';
 import type { Callback } from '../utils';
 import type { Collection } from '../collection';
 import type { ReadPreference } from '../read_preference';
 import type { GridFSBucketWriteStream } from './upload';
+import type { FindCursor } from '../cursor/find_cursor';
 
 /** @public */
 export interface GridFSBucketReadStreamOptions {
@@ -45,7 +46,7 @@ export interface GridFSBucketReadStreamPrivate {
   bytesToTrim: number;
   bytesToSkip: number;
   chunks: Collection;
-  cursor?: Cursor;
+  cursor?: FindCursor;
   expected: number;
   files: Collection;
   filter: Document;
@@ -202,7 +203,7 @@ function doRead(stream: GridFSBucketReadStream): void {
   if (!stream.s.cursor) return;
   if (!stream.s.file) return;
 
-  stream.s.cursor.next((error?: Error, doc?: Document) => {
+  stream.s.cursor.next((error, doc) => {
     if (stream.destroyed) {
       return;
     }
@@ -348,7 +349,7 @@ function init(stream: GridFSBucketReadStream): void {
     stream.s.cursor = stream.s.chunks.find(filter).sort({ n: 1 });
 
     if (stream.s.readPreference) {
-      stream.s.cursor.setReadPreference(stream.s.readPreference);
+      stream.s.cursor.withReadPreference(stream.s.readPreference);
     }
 
     stream.s.expectedEnd = Math.ceil(doc.length / doc.chunkSize);
@@ -420,7 +421,7 @@ function handleStartOption(
 function handleEndOption(
   stream: GridFSBucketReadStream,
   doc: Document,
-  cursor: Cursor,
+  cursor: FindCursor,
   options: GridFSBucketReadStreamOptions
 ) {
   if (options && options.end != null) {

@@ -18,7 +18,7 @@ describe('Collection', function () {
     let db;
     beforeEach(function () {
       client = configuration.newClient(configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
       return client.connect().then(client => {
         db = client.db(configuration.db);
@@ -315,22 +315,22 @@ describe('Collection', function () {
           );
 
           collection.insertOne({ i: 1 }, configuration.writeConcernMax(), (err, r) => {
-            expect(r.ops.length).to.equal(1);
-            expect(r.ops[0]._id.toHexString().length).to.equal(24);
+            expect(err).to.not.exist;
+            expect(r).property('insertedId').to.exist;
+            expect(r.insertedId.toHexString()).to.have.lengthOf(24);
 
             // Update the record
             collection.updateOne(
               { i: 1 },
               { $set: { i: 2 } },
               configuration.writeConcernMax(),
-              err => {
+              (err, r) => {
                 expect(err).to.not.exist;
-                expect(r.n).to.equal(1);
+                expect(r).property('modifiedCount').to.equal(1);
 
                 // Remove safely
                 collection.deleteOne({}, configuration.writeConcernMax(), err => {
                   expect(err).to.not.exist;
-
                   done();
                 });
               }
@@ -381,12 +381,10 @@ describe('Collection', function () {
 
     it('should throw error due to illegal update', function (done) {
       db.createCollection('shouldThrowErrorDueToIllegalUpdate', {}, (err, coll) => {
-        coll.update({}, null, err => {
-          expect(err.message).to.equal('document must be a valid JavaScript object');
-        });
-        coll.update(null, null, err => {
-          expect(err.message).to.equal('selector must be a valid JavaScript object');
-        });
+        expect(() => coll.update({}, null)).to.throw(/document must be a valid JavaScript object/);
+        expect(() => coll.update(null, null)).to.throw(
+          /selector must be a valid JavaScript object/
+        );
 
         done();
       });
@@ -414,7 +412,7 @@ describe('Collection', function () {
           test.updateObject,
           (err, r) => {
             expect(err).to.not.exist;
-            expect(r.result.n).to.equal(0);
+            expect(r).property('matchedCount').to.equal(0);
             done();
           }
         );
@@ -447,7 +445,7 @@ describe('Collection', function () {
             configuration.writeConcernMax(),
             (err, r) => {
               expect(err).to.not.exist;
-              expect(r.result.n).to.equal(0);
+              expect(r).property('matchedCount').to.equal(0);
 
               done();
             }
@@ -493,23 +491,28 @@ describe('Collection', function () {
         expect(err).to.not.exist;
 
         // Index name happens to be the same as collection name
-        db.createIndex(testCollection, 'collection_124', { w: 1 }, (err, indexName) => {
-          expect(err).to.not.exist;
-          expect(indexName).to.equal('collection_124_1');
-
-          db.listCollections().toArray((err, documents) => {
+        db.createIndex(
+          testCollection,
+          'collection_124',
+          { writeConcern: { w: 1 } },
+          (err, indexName) => {
             expect(err).to.not.exist;
-            expect(documents.length > 1).to.be.true;
-            let found = false;
+            expect(indexName).to.equal('collection_124_1');
 
-            documents.forEach(document => {
-              if (document.name === testCollection) found = true;
+            db.listCollections().toArray((err, documents) => {
+              expect(err).to.not.exist;
+              expect(documents.length > 1).to.be.true;
+              let found = false;
+
+              documents.forEach(document => {
+                if (document.name === testCollection) found = true;
+              });
+
+              expect(found).to.be.true;
+              done();
             });
-
-            expect(found).to.be.true;
-            done();
-          });
-        });
+          }
+        );
       });
     });
 
@@ -630,7 +633,7 @@ describe('Collection', function () {
           ) {
             collection.createIndex(
               { createdAt: 1 },
-              { expireAfterSeconds: 1, w: 1 },
+              { expireAfterSeconds: 1, writeConcern: { w: 1 } },
               errorCallBack
             );
           } else if (
@@ -638,7 +641,7 @@ describe('Collection', function () {
           ) {
             collection.ensureIndex(
               { createdAt: 1 },
-              { expireAfterSeconds: 1, w: 1 },
+              { expireAfterSeconds: 1, writeConcern: { w: 1 } },
               errorCallBack
             );
           }
@@ -668,7 +671,7 @@ describe('Collection', function () {
     let db;
     let collection;
     beforeEach(function () {
-      client = configuration.newClient({}, { w: 1 });
+      client = configuration.newClient({ w: 1 });
 
       return client.connect().then(client => {
         db = client.db(configuration.db);
@@ -852,7 +855,7 @@ describe('Collection', function () {
 
   function testCapped(testConfiguration, config, done) {
     const configuration = config.config;
-    const client = testConfiguration.newClient({}, { w: 1 });
+    const client = testConfiguration.newClient({ w: 1 });
 
     client.connect((err, client) => {
       const db = client.db(configuration.db);
@@ -938,7 +941,7 @@ describe('Collection', function () {
     metadata: { requires: { mongodb: '>=3.0.0' } },
     test: function (done) {
       const configuration = this.configuration;
-      const client = configuration.newClient({}, { w: 1 });
+      const client = configuration.newClient({ w: 1 });
 
       let finish = err => {
         finish = () => {};
@@ -972,7 +975,7 @@ describe('Collection', function () {
     test: function (done) {
       const configuration = this.configuration;
       const client = configuration.newClient(configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect((err, client) => {
@@ -985,7 +988,7 @@ describe('Collection', function () {
             configuration.writeConcernMax(),
             (err, r) => {
               expect(err).to.not.exist;
-              expect(r.result.n).to.equal(0);
+              expect(r).property('matchedCount').to.equal(0);
 
               client.close(done);
             }

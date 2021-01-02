@@ -22,7 +22,7 @@ describe('Aggregation', function () {
     },
 
     test: function (done) {
-      var client = this.configuration.newClient({ w: 1 }, { poolSize: 1 }),
+      var client = this.configuration.newClient({ w: 1 }, { maxPoolSize: 1 }),
         databaseName = this.configuration.db;
 
       // LINE var MongoClient = require('mongodb').MongoClient;
@@ -53,7 +53,7 @@ describe('Aggregation', function () {
         // Create a collection
         var collection = db.collection('shouldCorrectlyExecuteSimpleAggregationPipelineUsingArray');
         // Insert the docs
-        collection.insert(docs, { w: 1 }, function (err, result) {
+        collection.insert(docs, { writeConcern: { w: 1 } }, function (err, result) {
           expect(result).to.exist;
           expect(err).to.not.exist;
 
@@ -99,7 +99,7 @@ describe('Aggregation', function () {
     },
 
     test: function (done) {
-      const client = this.configuration.newClient({ w: 1 }, { poolSize: 1 });
+      const client = this.configuration.newClient({ w: 1 }, { maxPoolSize: 1 });
 
       client.connect(function (err, client) {
         expect(err).to.not.exist;
@@ -139,7 +139,7 @@ describe('Aggregation', function () {
     },
 
     test: function (done) {
-      var client = this.configuration.newClient({ w: 1 }, { poolSize: 1 }),
+      var client = this.configuration.newClient({ w: 1 }, { maxPoolSize: 1 }),
         databaseName = this.configuration.db;
 
       // LINE var MongoClient = require('mongodb').MongoClient;
@@ -172,7 +172,7 @@ describe('Aggregation', function () {
           'shouldCorrectlyExecuteSimpleAggregationPipelineUsingArguments'
         );
         // Insert the docs
-        collection.insert(docs, { w: 1 }, function (err, result) {
+        collection.insert(docs, { writeConcern: { w: 1 } }, function (err, result) {
           expect(result).to.exist;
           expect(err).to.not.exist;
 
@@ -227,7 +227,7 @@ describe('Aggregation', function () {
     },
 
     test: function (done) {
-      var client = this.configuration.newClient({ w: 1 }, { poolSize: 1 }),
+      var client = this.configuration.newClient({ w: 1 }, { maxPoolSize: 1 }),
         databaseName = this.configuration.db;
 
       // LINE var MongoClient = require('mongodb').MongoClient;
@@ -260,7 +260,7 @@ describe('Aggregation', function () {
           'shouldCorrectlyExecuteSimpleAggregationPipelineUsingArguments'
         );
         // Insert the docs
-        collection.insert(docs, { w: 1 }, function (err, result) {
+        collection.insert(docs, { writeConcern: { w: 1 } }, function (err, result) {
           expect(result).to.exist;
           expect(err).to.not.exist;
 
@@ -315,7 +315,7 @@ describe('Aggregation', function () {
     },
 
     test: function (done) {
-      var client = this.configuration.newClient({ w: 1 }, { poolSize: 1 }),
+      var client = this.configuration.newClient({ w: 1 }, { maxPoolSize: 1 }),
         databaseName = this.configuration.db;
 
       // LINE var MongoClient = require('mongodb').MongoClient;
@@ -346,7 +346,7 @@ describe('Aggregation', function () {
         // Create a collection
         var collection = db.collection('shouldCorrectlyDoAggWithCursorGet');
         // Insert the docs
-        collection.insert(docs, { w: 1 }, function (err, result) {
+        collection.insert(docs, { writeConcern: { w: 1 } }, function (err, result) {
           expect(err).to.not.exist;
           expect(result).to.exist;
 
@@ -387,8 +387,6 @@ describe('Aggregation', function () {
    * @example-method aggregate
    */
   it('should correctly return a cursor and call explain', {
-    // Add a tag that our runner can trigger on
-    // in this case we are setting that node needs to be higher than 0.10.X to run
     metadata: {
       requires: {
         mongodb: '>2.5.3',
@@ -397,7 +395,7 @@ describe('Aggregation', function () {
     },
 
     test: function (done) {
-      var client = this.configuration.newClient({ w: 1 }, { poolSize: 1 }),
+      var client = this.configuration.newClient({ maxPoolSize: 1 }),
         databaseName = this.configuration.db;
 
       // LINE var MongoClient = require('mongodb').MongoClient;
@@ -428,7 +426,7 @@ describe('Aggregation', function () {
         // Create a collection
         var collection = db.collection('shouldCorrectlyDoAggWithCursorGet');
         // Insert the docs
-        collection.insert(docs, { w: 1 }, function (err, result) {
+        collection.insert(docs, { writeConcern: { w: 1 } }, function (err, result) {
           expect(result).to.exist;
           expect(err).to.not.exist;
 
@@ -458,7 +456,7 @@ describe('Aggregation', function () {
           cursor.explain(function (err, result) {
             expect(err).to.not.exist;
             expect(result.stages).to.have.lengthOf.at.least(1);
-            expect(result.stages[0]).to.have.key('$cursor');
+            expect(result.stages[0]).to.have.property('$cursor');
 
             client.close(done);
           });
@@ -485,7 +483,7 @@ describe('Aggregation', function () {
     },
 
     test: function (done) {
-      var client = this.configuration.newClient({ w: 1 }, { poolSize: 1 }),
+      var client = this.configuration.newClient({ w: 1 }, { maxPoolSize: 1 }),
         databaseName = this.configuration.db;
 
       // LINE var MongoClient = require('mongodb').MongoClient;
@@ -517,7 +515,7 @@ describe('Aggregation', function () {
         // Create a collection
         const collection = db.collection('shouldCorrectlyDoAggWithCursorGet');
         // Insert the docs
-        collection.insert(docs, { w: 1 }, (err, result) => {
+        collection.insert(docs, { writeConcern: { w: 1 } }, (err, result) => {
           expect(result).to.exist;
           expect(err).to.not.exist;
 
@@ -575,7 +573,7 @@ describe('Aggregation', function () {
     },
 
     test: function (done) {
-      var client = this.configuration.newClient({ w: 1 }, { poolSize: 1 }),
+      var client = this.configuration.newClient({ w: 1 }, { maxPoolSize: 1 }),
         databaseName = this.configuration.db;
 
       // LINE var MongoClient = require('mongodb').MongoClient;
@@ -606,7 +604,7 @@ describe('Aggregation', function () {
         // Create a collection
         var collection = db.collection('shouldCorrectlyDoAggWithCursorGet');
         // Insert the docs
-        collection.insert(docs, { w: 1 }, function (err, result) {
+        collection.insert(docs, { writeConcern: { w: 1 } }, function (err, result) {
           expect(result).to.exist;
           expect(err).to.not.exist;
 
@@ -660,7 +658,7 @@ describe('Aggregation', function () {
     },
 
     test: function (done) {
-      var client = this.configuration.newClient({ w: 1 }, { poolSize: 1 }),
+      var client = this.configuration.newClient({ w: 1 }, { maxPoolSize: 1 }),
         databaseName = this.configuration.db;
 
       // LINE var MongoClient = require('mongodb').MongoClient;
@@ -691,7 +689,7 @@ describe('Aggregation', function () {
         // Create a collection
         var collection = db.collection('shouldCorrectlyDoAggWithCursorGet');
         // Insert the docs
-        collection.insert(docs, { w: 1 }, function (err, result) {
+        collection.insert(docs, { writeConcern: { w: 1 } }, function (err, result) {
           expect(result).to.exist;
           expect(err).to.not.exist;
 
@@ -748,7 +746,7 @@ describe('Aggregation', function () {
     test: function (done) {
       var databaseName = this.configuration.db;
       var client = this.configuration.newClient(this.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect(function (err, client) {
@@ -761,9 +759,9 @@ describe('Aggregation', function () {
           expect(err).to.not.exist;
 
           // Insert a single document
-          col.insert([{ a: 1 }, { a: 1 }, { a: 1 }], function (err, r) {
+          col.insertMany([{ a: 1 }, { a: 1 }, { a: 1 }], function (err, r) {
             expect(err).to.not.exist;
-            expect(r.result.n).to.equal(3);
+            expect(r).property('insertedCount').to.equal(3);
 
             // Get first two documents that match the query
             col
@@ -801,7 +799,7 @@ describe('Aggregation', function () {
     test: function (done) {
       var databaseName = this.configuration.db;
       var client = this.configuration.newClient(this.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect(function (err, client) {
@@ -812,9 +810,9 @@ describe('Aggregation', function () {
           expect(err).to.not.exist;
           var count = 0;
 
-          col.insert([{ a: 1 }, { a: 1 }, { a: 1 }], function (err, r) {
+          col.insertMany([{ a: 1 }, { a: 1 }, { a: 1 }], function (err, r) {
             expect(err).to.not.exist;
-            expect(r.result.n).to.equal(3);
+            expect(r).property('insertedCount').to.equal(3);
 
             const cursor = col.aggregate([{ $project: { a: 1 } }]);
 
@@ -861,7 +859,7 @@ describe('Aggregation', function () {
     test: function (done) {
       var databaseName = this.configuration.db;
       var client = this.configuration.newClient(this.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect(function (err, client) {
@@ -887,13 +885,13 @@ describe('Aggregation', function () {
         // Create a collection
         var collection = db.collection('shouldCorrectlyDoAggWithCursorGetStream');
         // Insert the docs
-        collection.insert(docs, { w: 1 }, function (err, result) {
+        collection.insert(docs, { writeConcern: { w: 1 } }, function (err, result) {
           expect(result).to.exist;
           expect(err).to.not.exist;
 
           try {
             // Execute aggregate, notice the pipeline is expressed as an Array
-            collection.aggregate(
+            const cursor = collection.aggregate(
               [
                 {
                   $project: {
@@ -913,6 +911,8 @@ describe('Aggregation', function () {
                 cursor: 1
               }
             );
+
+            cursor.next();
           } catch (err) {
             client.close(done);
             return;
@@ -925,7 +925,7 @@ describe('Aggregation', function () {
     }
   });
 
-  it('should fail if you try to use explain flag with readConcern/writeConcern', {
+  it('should fail if you try to use explain flag with writeConcern', {
     metadata: {
       requires: {
         mongodb: '>3.6.0',
@@ -935,12 +935,9 @@ describe('Aggregation', function () {
 
     test: function (done) {
       var databaseName = this.configuration.db;
-      var client = this.configuration.newClient(this.configuration.writeConcernMax(), {
-        poolSize: 1
-      });
+      var client = this.configuration.newClient({ maxPoolSize: 1 });
 
       const testCases = [
-        { readConcern: { level: 'local' } },
         { writeConcern: { j: true } },
         { readConcern: { level: 'local' }, writeConcern: { j: true } }
       ];
@@ -1002,7 +999,7 @@ describe('Aggregation', function () {
       },
 
       test: function (done) {
-        const client = this.configuration.newClient({ w: 1 }, { poolSize: 1 }),
+        const client = this.configuration.newClient({ w: 1 }, { maxPoolSize: 1 }),
           databaseName = this.configuration.db;
 
         // DOC_LINE var db = new Db('test', new Server('localhost', 27017));
@@ -1030,7 +1027,7 @@ describe('Aggregation', function () {
           // Create a collection
           const collection = db.collection('shouldCorrectlyDoAggWithCursorMaxTimeMSSet');
           // Insert the docs
-          collection.insert(docs, { w: 1 }, (err, result) => {
+          collection.insert(docs, { writeConcern: { w: 1 } }, (err, result) => {
             expect(result).to.exist;
             expect(err).to.not.exist;
 
@@ -1130,7 +1127,7 @@ describe('Aggregation', function () {
       }
     },
     test: function (done) {
-      const client = this.configuration.newClient({ w: 1 }, { poolSize: 1 });
+      const client = this.configuration.newClient({ w: 1 }, { maxPoolSize: 1 });
       const databaseName = this.configuration.db;
 
       const comment = 'Darmok and Jalad at Tanagra';
@@ -1173,7 +1170,7 @@ describe('Aggregation', function () {
     test: function (done) {
       var databaseName = this.configuration.db;
       var client = this.configuration.newClient(this.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       // DOC_LINE var client = new MongoClient(new Server('localhost', 27017));
@@ -1200,7 +1197,7 @@ describe('Aggregation', function () {
         // Create a collection
         var collection = db.collection('shouldCorrectlyQueryUsingISODate');
         // Insert the docs
-        collection.insertMany(docs, { w: 1 }, function (err, result) {
+        collection.insertMany(docs, { writeConcern: { w: 1 } }, function (err, result) {
           expect(result).to.exist;
           expect(err).to.not.exist;
 
@@ -1240,7 +1237,7 @@ describe('Aggregation', function () {
     test: function (done) {
       var databaseName = this.configuration.db;
       var client = this.configuration.newClient(this.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       // DOC_LINE var client = new MongoClient(new Server('localhost', 27017));
@@ -1252,7 +1249,10 @@ describe('Aggregation', function () {
         // Create a collection
         var collection = db.collection('shouldCorrectlyQueryUsingISODate3');
         // Insert the docs
-        collection.insertMany([{ a: 1 }, { b: 1 }], { w: 1 }, function (err, result) {
+        collection.insertMany([{ a: 1 }, { b: 1 }], { writeConcern: { w: 1 } }, function (
+          err,
+          result
+        ) {
           expect(result).to.exist;
           expect(err).to.not.exist;
 
@@ -1281,7 +1281,7 @@ describe('Aggregation', function () {
     test: function (done) {
       const databaseName = this.configuration.db;
       const client = this.configuration.newClient(this.configuration.writeConcernMax(), {
-        poolSize: 1,
+        maxPoolSize: 1,
         monitorCommands: true
       });
 

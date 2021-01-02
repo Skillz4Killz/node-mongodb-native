@@ -4,14 +4,16 @@ import {
   Batch,
   BatchType,
   BulkWriteOptions,
-  UpdateStatement,
-  DeleteStatement,
-  BulkWriteResult
+  BulkWriteResult,
+  BatchTypeId
 } from './common';
 import type { Callback } from '../utils';
 import type { Document } from '../bson';
 import type { Collection } from '../collection';
+import type { UpdateStatement } from '../operations/update';
+import type { DeleteStatement } from '../operations/delete';
 
+/** @public */
 export class UnorderedBulkOperation extends BulkOperationBase {
   constructor(collection: Collection, options: BulkWriteOptions) {
     super(collection, options, false);
@@ -26,7 +28,7 @@ export class UnorderedBulkOperation extends BulkOperationBase {
   }
 
   addToOperationsList(
-    batchType: BatchType,
+    batchType: BatchTypeId,
     document: Document | UpdateStatement | DeleteStatement
   ): this {
     // Get the bsonSize
@@ -50,7 +52,7 @@ export class UnorderedBulkOperation extends BulkOperationBase {
       this.s.currentBatch = this.s.currentInsertBatch;
     } else if (batchType === BatchType.UPDATE) {
       this.s.currentBatch = this.s.currentUpdateBatch;
-    } else if (batchType === BatchType.REMOVE) {
+    } else if (batchType === BatchType.DELETE) {
       this.s.currentBatch = this.s.currentRemoveBatch;
     }
 
@@ -97,7 +99,7 @@ export class UnorderedBulkOperation extends BulkOperationBase {
       });
     } else if (batchType === BatchType.UPDATE) {
       this.s.currentUpdateBatch = this.s.currentBatch;
-    } else if (batchType === BatchType.REMOVE) {
+    } else if (batchType === BatchType.DELETE) {
       this.s.currentRemoveBatch = this.s.currentBatch;
     }
 

@@ -4,7 +4,6 @@ import { ReadPreference, ReadPreferenceLike } from '../read_preference';
 import { ServerDescription } from './server_description';
 import { TopologyDescription } from './topology_description';
 import { Server, ServerOptions } from './server';
-import { Cursor } from '../cursor';
 import {
   ClientSession,
   ServerSessionPool,
@@ -23,8 +22,8 @@ import {
   makeClientMetadata,
   emitDeprecatedOptionWarning,
   ClientMetadata,
-  MongoDBNamespace,
-  Callback
+  Callback,
+  ns
 } from '../utils';
 import {
   TopologyType,
@@ -54,8 +53,6 @@ import type { Transaction } from '../transactions';
 import type { CloseOptions } from '../cmap/connection_pool';
 import type { LoggerOptions } from '../logger';
 import { DestroyOptions, Connection } from '../cmap/connection';
-import { RunCommandOperation } from '../operations/run_command';
-import type { CursorOptions } from '../cursor/cursor';
 import type { MongoClientOptions } from '../mongo_client';
 
 // Global state
@@ -114,8 +111,6 @@ export interface TopologyPrivate {
   serverSelectionTimeoutMS: number;
   heartbeatFrequencyMS: number;
   minHeartbeatFrequencyMS: number;
-  /** allow users to override the cursor factory */
-  Cursor: typeof Cursor;
   /** A map of server instances to normalized addresses */
   servers: Map<string, Server>;
   /** Server Session Pool */
@@ -155,7 +150,6 @@ export interface TopologyOptions extends ServerOptions, BSONSerializeOptions, Lo
   minHeartbeatFrequencyMS: number;
   /** The name of the replica set to connect to */
   replicaSet?: string;
-  cursorFactory: typeof Cursor;
   srvHost?: string;
   srvPoller?: SrvPoller;
   /** Indicates that a client should directly connect to a node without attempting to discover its topology type */
@@ -242,7 +236,7 @@ export class Topology extends EventEmitter {
         result.set(address, new ServerDescription(address));
         return result;
       },
-      new Map()
+      new Map<string, ServerDescription>()
     );
 
     this[kWaitQueue] = new Denque();
@@ -268,8 +262,6 @@ export class Topology extends EventEmitter {
       serverSelectionTimeoutMS: options.serverSelectionTimeoutMS,
       heartbeatFrequencyMS: options.heartbeatFrequencyMS,
       minHeartbeatFrequencyMS: options.minHeartbeatFrequencyMS,
-      // allow users to override the cursor factory
-      Cursor: options.cursorFactory || Cursor,
       // a map of server instances to normalized addresses
       servers: new Map(),
       // Server Session Pool
@@ -326,7 +318,7 @@ export class Topology extends EventEmitter {
   /** Initiate server connect */
   connect(options?: ConnectOptions, callback?: Callback): void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
+    options = options ?? {};
     if (this.s.state === STATE_CONNECTED) {
       if (typeof callback === 'function') {
         callback();
@@ -365,7 +357,7 @@ export class Topology extends EventEmitter {
 
       // TODO: NODE-2471
       if (server && this.s.credentials) {
-        server.command('admin.$cmd', { ping: 1 }, err => {
+        server.command(ns('admin.$cmd'), { ping: 1 }, err => {
           if (err) {
             typeof callback === 'function' ? callback(err) : this.emit(Topology.ERROR, err);
             return;
@@ -400,7 +392,7 @@ export class Topology extends EventEmitter {
       options = { force: options };
     }
 
-    options = options || {};
+    options = options ?? {};
     if (this.s.state === STATE_CLOSED || this.s.state === STATE_CLOSING) {
       if (typeof callback === 'function') {
         callback();
@@ -585,7 +577,7 @@ export class Topology extends EventEmitter {
         }
 
         server.command(
-          'admin.$cmd',
+          ns('admin.$cmd'),
           { endSessions: sessions },
           { noResponse: true },
           (err, result) => {
@@ -682,26 +674,6 @@ export class Topology extends EventEmitter {
     if (typeof callback === 'function') callback(undefined, true);
   }
 
-  /**
-   * Create a new cursor
-   *
-   * @param ns - The MongoDB fully qualified namespace (ex: db1.collection1)
-   * @param cmd - Can be either a command returning a cursor or a cursorId
-   * @param options - Options for the cursor
-   */
-  cursor(ns: string, cmd: Document, options?: CursorOptions): Cursor {
-    options = options || {};
-    const topology = options.topology || this;
-    const CursorClass = options.cursorFactory ?? this.s.Cursor;
-    ReadPreference.translate(options);
-
-    return new CursorClass(
-      topology,
-      new RunCommandOperation({ s: { namespace: MongoDBNamespace.fromString(ns) } }, cmd, options),
-      options
-    );
-  }
-
   get clientMetadata(): ClientMetadata {
     return this.s.options.metadata;
   }
@@ -758,7 +730,7 @@ function destroyServer(
   options?: DestroyOptions,
   callback?: Callback
 ) {
-  options = options || {};
+  options = options ?? {};
   LOCAL_SERVER_EVENTS.forEach((event: string) => server.removeAllListeners(event));
 
   server.destroy(options, () => {

@@ -1,5 +1,9 @@
 import { Instrumentation } from './apm';
-import { Cursor, AggregationCursor, CommandCursor } from './cursor';
+import { AbstractCursor } from './cursor/abstract_cursor';
+import { AggregationCursor } from './cursor/aggregation_cursor';
+import { FindCursor } from './cursor/find_cursor';
+import { ListIndexesCursor } from './operations/indexes';
+import { ListCollectionsCursor } from './operations/list_collections';
 import { PromiseProvider } from './promise_provider';
 import { Admin } from './admin';
 import { MongoClient } from './mongo_client';
@@ -57,11 +61,7 @@ export {
   MongoParseError,
   MongoWriteConcernError
 } from './error';
-export {
-  BulkWriteError as MongoBulkWriteError,
-  BulkWriteOptions,
-  AnyBulkWriteOperation
-} from './bulk/common';
+export { MongoBulkWriteError, BulkWriteOptions, AnyBulkWriteOperation } from './bulk/common';
 export {
   // Utils
   instrument,
@@ -73,9 +73,11 @@ export {
   Collection,
   ReadPreference,
   Logger,
+  AbstractCursor,
   AggregationCursor,
-  CommandCursor,
-  Cursor,
+  FindCursor,
+  ListIndexesCursor,
+  ListCollectionsCursor,
   GridFSBucket
 };
 
@@ -93,9 +95,7 @@ export type {
   BulkWriteResult,
   WriteError,
   WriteConcernError,
-  BulkWriteOperationError,
-  UpdateStatement,
-  DeleteStatement
+  BulkWriteOperationError
 } from './bulk/common';
 export type {
   ChangeStream,
@@ -107,7 +107,7 @@ export type {
   OperationTime,
   ResumeOptions
 } from './change_stream';
-export type { AuthMechanism } from './cmap/auth/defaultAuthProviders';
+export type { AuthMechanism, AuthMechanismId } from './cmap/auth/defaultAuthProviders';
 export type { MongoCredentials, MongoCredentialsOptions } from './cmap/auth/mongo_credentials';
 export type {
   WriteProtocolMessageType,
@@ -119,7 +119,14 @@ export type {
   OpQueryOptions
 } from './cmap/commands';
 export type { Stream } from './cmap/connect';
-export type { Connection, ConnectionOptions, DestroyOptions } from './cmap/connection';
+export type {
+  Connection,
+  ConnectionOptions,
+  DestroyOptions,
+  CommandOptions,
+  QueryOptions,
+  GetMoreOptions
+} from './cmap/connection';
 export type {
   CloseOptions,
   ConnectionPoolOptions,
@@ -133,38 +140,20 @@ export type {
   MessageStreamOptions
 } from './cmap/message_stream';
 export type { StreamDescription, StreamDescriptionOptions } from './cmap/stream_description';
-export type { CommandOptions } from './cmap/wire_protocol/command';
 export type { CompressorName, Compressor } from './cmap/wire_protocol/compression';
-export type { GetMoreOptions } from './cmap/wire_protocol/get_more';
-export type {
-  InsertOptions as WireInsertOptions,
-  UpdateOptions as WireUpdateOptions,
-  RemoveOptions as WireRemoveOptions
-} from './cmap/wire_protocol/index';
-export type { QueryOptions } from './cmap/wire_protocol/query';
-export type { CollationOptions, WriteCommandOptions } from './cmap/wire_protocol/write_command';
 export type { CollectionPrivate, CollectionOptions } from './collection';
 export type { AggregationCursorOptions } from './cursor/aggregation_cursor';
-export type { CommandCursorOptions } from './cursor/command_cursor';
 export type {
-  CoreCursor,
   CursorCloseOptions,
-  DocumentTransforms,
-  StreamOptions,
-  CoreCursorOptions,
-  CoreCursorPrivate,
-  CursorState
-} from './cursor/core_cursor';
-export type {
-  CursorOptions,
-  CursorPrivate,
-  FIELDS as CURSOR_FIELDS,
-  FLAGS as CURSOR_FLAGS,
+  CursorStreamOptions,
+  AbstractCursorOptions,
+  CURSOR_FLAGS,
   CursorFlag
-} from './cursor/cursor';
+} from './cursor/abstract_cursor';
 export type { DbPrivate, DbOptions } from './db';
 export type { AutoEncryptionOptions, AutoEncryptionLoggerLevels, AutoEncrypter } from './deps';
 export type { AnyError, ErrorDescription } from './error';
+export type { Explain, ExplainOptions, ExplainVerbosity, ExplainVerbosityLike } from './explain';
 export type {
   GridFSBucketReadStream,
   GridFSBucketReadStreamOptions,
@@ -186,8 +175,11 @@ export type {
   PkFactory,
   MongoURIOptions,
   LogLevel,
+  LogLevelId,
   Auth,
-  DriverInfo
+  DriverInfo,
+  MongoOptions,
+  HostAddress
 } from './mongo_client';
 export type { AddUserOptions } from './operations/add_user';
 export type {
@@ -198,19 +190,20 @@ export type {
 export type {
   CommandOperationOptions,
   OperationParent,
-  CommandOperation
+  CommandOperation,
+  CollationOptions
 } from './operations/command';
 export type { IndexInformationOptions } from './operations/common_functions';
 export type { CountOptions } from './operations/count';
 export type { CountDocumentsOptions } from './operations/count_documents';
 export type { CreateCollectionOptions } from './operations/create_collection';
-export type { EachCallback } from './operations/cursor_ops';
-export type { DeleteOptions, DeleteResult } from './operations/delete';
+export type { DeleteOptions, DeleteResult, DeleteStatement } from './operations/delete';
 export type { DistinctOptions } from './operations/distinct';
 export type { DropCollectionOptions, DropDatabaseOptions } from './operations/drop';
 export type { EstimatedDocumentCountOptions } from './operations/estimated_document_count';
 export type { EvalOptions } from './operations/eval';
-export type { FindOptions, Sort, SortDirection } from './operations/find';
+export type { FindOptions } from './operations/find';
+export type { Sort, SortDirection } from './sort';
 export type { FindAndModifyOptions } from './operations/find_and_modify';
 export type {
   IndexSpecification,
@@ -220,8 +213,7 @@ export type {
   ListIndexesOptions,
   IndexDirection
 } from './operations/indexes';
-export type { InsertOneResult, InsertOneOptions } from './operations/insert';
-export type { InsertManyResult } from './operations/insert_many';
+export type { InsertOneResult, InsertOneOptions, InsertManyResult } from './operations/insert';
 export type { ListCollectionsOptions } from './operations/list_collections';
 export type { ListDatabasesResult, ListDatabasesOptions } from './operations/list_databases';
 export type {
@@ -230,24 +222,29 @@ export type {
   MapReduceOptions,
   FinalizeFunction
 } from './operations/map_reduce';
-export type { Hint, OperationOptions, OperationBase } from './operations/operation';
+export type { Hint, OperationOptions, AbstractOperation } from './operations/operation';
 export type { ProfilingLevelOptions } from './operations/profiling_level';
 export type { RemoveUserOptions } from './operations/remove_user';
 export type { RenameOptions } from './operations/rename';
-export type { ReplaceOptions } from './operations/replace_one';
 export type { RunCommandOptions } from './operations/run_command';
 export type { ProfilingLevel, SetProfilingLevelOptions } from './operations/set_profiling_level';
 export type { CollStatsOptions, DbStatsOptions } from './operations/stats';
-export type { UpdateResult, UpdateOptions } from './operations/update';
+export type {
+  UpdateResult,
+  UpdateOptions,
+  ReplaceOptions,
+  UpdateStatement
+} from './operations/update';
 export type { ValidateCollectionOptions } from './operations/validate_collection';
 export type {
   ReadConcern,
-  ReadConcernLevel,
   ReadConcernLike,
-  ReadConcernLevelLike
+  ReadConcernLevel,
+  ReadConcernLevelId
 } from './read_concern';
 export type {
   ReadPreferenceLike,
+  ReadPreferenceModeId,
   ReadPreferenceMode,
   ReadPreferenceOptions,
   ReadPreferenceLikeOptions,
@@ -276,12 +273,12 @@ export type {
   Topology,
   TopologyPrivate,
   ServerSelectionRequest,
-  ServerAddress,
   TopologyOptions,
   ServerCapabilities,
   ConnectOptions,
   SelectServerOptions,
-  ServerSelectionCallback
+  ServerSelectionCallback,
+  ServerAddress
 } from './sdam/topology';
 export type { TopologyDescription, TopologyDescriptionOptions } from './sdam/topology_description';
 export type {
@@ -295,9 +292,22 @@ export type {
 export type { TransactionOptions, Transaction, TxnState } from './transactions';
 export type {
   Callback,
-  MongoDBNamespace,
   ClientMetadata,
-  InterruptableAsyncInterval,
-  ClientMetadataOptions
+  ClientMetadataOptions,
+  MongoDBNamespace,
+  InterruptibleAsyncInterval,
+  BufferPool
 } from './utils';
-export type { WriteConcern, W, WriteConcernOptions } from './write_concern';
+export type { WriteConcern, W, WriteConcernOptions, WriteConcernSettings } from './write_concern';
+export type { ExecutionResult } from './operations/execute_operation';
+export type { InternalAbstractCursorOptions } from './cursor/abstract_cursor';
+export type {
+  BulkOperationBase,
+  BulkOperationPrivate,
+  BatchType,
+  BatchTypeId,
+  FindOperators,
+  Batch
+} from './bulk/common';
+export type { OrderedBulkOperation } from './bulk/ordered';
+export type { UnorderedBulkOperation } from './bulk/unordered';

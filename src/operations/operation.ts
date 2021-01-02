@@ -1,6 +1,6 @@
-import { ReadPreference } from '../read_preference';
+import { ReadPreference, ReadPreferenceLike } from '../read_preference';
 import type { ClientSession } from '../sessions';
-import type { Document, BSONSerializeOptions } from '../bson';
+import { Document, BSONSerializeOptions, resolveBSONOptions } from '../bson';
 import type { MongoDBNamespace, Callback } from '../utils';
 import type { Server } from '../sdam/server';
 
@@ -8,7 +8,8 @@ export const Aspect = {
   READ_OPERATION: Symbol('READ_OPERATION'),
   WRITE_OPERATION: Symbol('WRITE_OPERATION'),
   RETRYABLE: Symbol('RETRYABLE'),
-  NO_INHERIT_OPTIONS: Symbol('NO_INHERIT_OPTIONS')
+  EXPLAINABLE: Symbol('EXPLAINABLE'),
+  SKIP_COLLATION: Symbol('SKIP_COLLATION')
 } as const;
 
 /** @public */
@@ -18,14 +19,17 @@ export interface OperationConstructor extends Function {
   aspects?: Set<symbol>;
 }
 
-/** @internal */
+/** @public */
 export interface OperationOptions extends BSONSerializeOptions {
   /** Specify ClientSession for this command */
   session?: ClientSession;
-
-  explain?: boolean;
   willRetryWrites?: boolean;
+
+  /** The preferred read preference (ReadPreference.primary, ReadPreference.primary_preferred, ReadPreference.secondary, ReadPreference.secondary_preferred, ReadPreference.nearest). */
+  readPreference?: ReadPreferenceLike;
 }
+
+const kSession = Symbol('session');
 
 /**
  * This class acts as a parent class for any operation and is responsible for setting this.options,
@@ -34,11 +38,7 @@ export interface OperationOptions extends BSONSerializeOptions {
  * a specific aspect.
  * @internal
  */
-export abstract class OperationBase<
-  T extends OperationOptions = OperationOptions,
-  TResult = Document
-> {
-  options: T;
+export abstract class AbstractOperation<T> {
   ns!: MongoDBNamespace;
   cmd!: Document;
   readPreference: ReadPreference;
@@ -48,12 +48,22 @@ export abstract class OperationBase<
   // BSON serialization options
   bsonOptions?: BSONSerializeOptions;
 
-  constructor(options: T = {} as T) {
-    this.options = Object.assign({}, options);
-    this.readPreference = ReadPreference.primary;
+  [kSession]: ClientSession;
+
+  constructor(options: OperationOptions = {}) {
+    this.readPreference = this.hasAspect(Aspect.WRITE_OPERATION)
+      ? ReadPreference.primary
+      : ReadPreference.fromOptions(options) ?? ReadPreference.primary;
+
+    // Pull the BSON serialize options from the already-resolved options
+    this.bsonOptions = resolveBSONOptions(options);
+
+    if (options.session) {
+      this[kSession] = options.session;
+    }
   }
 
-  abstract execute(server: Server, callback: Callback<TResult>): void;
+  abstract execute(server: Server, session: ClientSession, callback: Callback<T>): void;
 
   hasAspect(aspect: symbol): boolean {
     const ctor = this.constructor as OperationConstructor;
@@ -64,20 +74,8 @@ export abstract class OperationBase<
     return ctor.aspects.has(aspect);
   }
 
-  set session(session: ClientSession) {
-    Object.assign(this.options, { session });
-  }
-
   get session(): ClientSession {
-    // NOTE: Using the bang operator here because we know there is always a
-    //       session, explicit or implicit. We should disambiguate the session
-    //       from the options and set it as an explicit field
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    return this.options.session!;
-  }
-
-  clearSession(): void {
-    delete this.options.session;
+    return this[kSession];
   }
 
   get canRetryRead(): boolean {

@@ -1,21 +1,21 @@
 'use strict';
-const test = require('./shared').assert,
-  setupDatabase = require('./shared').setupDatabase,
-  expect = require('chai').expect;
+const { withClient, setupDatabase } = require('./shared');
+const test = require('./shared').assert;
+const { expect } = require('chai');
 
-describe('Connection', function () {
+describe('Connection - functional', function () {
   before(function () {
     return setupDatabase(this.configuration);
   });
 
   it('should correctly start monitoring for single server connection', {
-    metadata: { requires: { topology: 'single' } },
+    metadata: { requires: { topology: 'single', os: '!win32' } },
 
     test: function (done) {
       var configuration = this.configuration;
       var client = configuration.newClient(
         { w: 1 },
-        { poolSize: 1, host: '/tmp/mongodb-27017.sock', heartbeatFrequencyMS: 250 }
+        { maxPoolSize: 1, host: '/tmp/mongodb-27017.sock', heartbeatFrequencyMS: 250 }
       );
 
       client.connect(function (err, client) {
@@ -29,31 +29,35 @@ describe('Connection', function () {
   });
 
   it('should correctly connect to server using domain socket', {
-    metadata: { requires: { topology: 'single' } },
+    metadata: { requires: { topology: 'single', os: '!win32' } },
 
     test: function (done) {
       var configuration = this.configuration;
       var client = configuration.newClient(
         { w: 1 },
-        { poolSize: 1, host: '/tmp/mongodb-27017.sock' }
+        { maxPoolSize: 1, host: '/tmp/mongodb-27017.sock' }
       );
 
       client.connect(function (err, client) {
-        var db = client.db(configuration.db);
         expect(err).to.not.exist;
+        var db = client.db(configuration.db);
 
-        db.collection('domainSocketCollection0').insert({ a: 1 }, { w: 1 }, function (err) {
-          expect(err).to.not.exist;
+        db.collection('domainSocketCollection0').insert(
+          { a: 1 },
+          { writeConcern: { w: 1 } },
+          function (err) {
+            expect(err).to.not.exist;
 
-          db.collection('domainSocketCollection0')
-            .find({ a: 1 })
-            .toArray(function (err, items) {
-              expect(err).to.not.exist;
-              test.equal(1, items.length);
+            db.collection('domainSocketCollection0')
+              .find({ a: 1 })
+              .toArray(function (err, items) {
+                expect(err).to.not.exist;
+                test.equal(1, items.length);
 
-              client.close(done);
-            });
-        });
+                client.close(done);
+              });
+          }
+        );
       });
     }
   });
@@ -65,7 +69,7 @@ describe('Connection', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient({ w: 1 }, { poolSize: 1, auto_reconnect: true });
+      var client = configuration.newClient({ w: 1 }, { maxPoolSize: 1 });
 
       client.on('open', function () {
         client.close(done);
@@ -83,7 +87,7 @@ describe('Connection', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient({ w: 1 }, { poolSize: 2000, auto_reconnect: true });
+      var client = configuration.newClient({ w: 1 }, { maxPoolSize: 2000 });
       client.on('open', function () {
         client.close(done);
       });
@@ -93,31 +97,35 @@ describe('Connection', function () {
   });
 
   it('should connect to server using domain socket with undefined port', {
-    metadata: { requires: { topology: 'single' } },
+    metadata: { requires: { topology: 'single', os: '!win32' } },
 
     test: function (done) {
       var configuration = this.configuration;
       var client = configuration.newClient(
         { w: 1 },
-        { poolSize: 1, host: '/tmp/mongodb-27017.sock', port: undefined }
+        { maxPoolSize: 1, host: '/tmp/mongodb-27017.sock', port: undefined }
       );
 
       client.connect(function (err, client) {
-        var db = client.db(configuration.db);
         expect(err).to.not.exist;
+        var db = client.db(configuration.db);
 
-        db.collection('domainSocketCollection1').insert({ x: 1 }, { w: 1 }, function (err) {
-          expect(err).to.not.exist;
+        db.collection('domainSocketCollection1').insert(
+          { x: 1 },
+          { writeConcern: { w: 1 } },
+          function (err) {
+            expect(err).to.not.exist;
 
-          db.collection('domainSocketCollection1')
-            .find({ x: 1 })
-            .toArray(function (err, items) {
-              expect(err).to.not.exist;
-              test.equal(1, items.length);
+            db.collection('domainSocketCollection1')
+              .find({ x: 1 })
+              .toArray(function (err, items) {
+                expect(err).to.not.exist;
+                test.equal(1, items.length);
 
-              client.close(done);
-            });
-        });
+                client.close(done);
+              });
+          }
+        );
       });
     }
   });
@@ -135,7 +143,7 @@ describe('Connection', function () {
       db.collection(testName, function (err, collection) {
         expect(err).to.not.exist;
 
-        collection.insert({ foo: 123 }, { w: 1 }, function (err) {
+        collection.insert({ foo: 123 }, { writeConcern: { w: 1 } }, function (err) {
           expect(err).to.not.exist;
 
           db.dropDatabase(function (err, dropped) {
@@ -200,8 +208,8 @@ describe('Connection', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var user = 'testConnectGoodAuthAsOption',
-        password = 'password';
+      const username = 'testConnectGoodAuthAsOption';
+      const password = 'password';
 
       // First add a user.
       const setupClient = configuration.newClient();
@@ -209,14 +217,14 @@ describe('Connection', function () {
         expect(err).to.not.exist;
         var db = client.db(configuration.db);
 
-        db.addUser(user, password, function (err) {
+        db.addUser(username, password, function (err) {
           expect(err).to.not.exist;
           client.close(restOfTest);
         });
       });
 
       function restOfTest() {
-        var opts = { auth: { user: user, password: password } };
+        var opts = { auth: { username, password } };
 
         const testClient = configuration.newClient(
           configuration.url('baduser', 'badpassword'),
@@ -249,17 +257,9 @@ describe('Connection', function () {
   it('test connect bad url', {
     metadata: { requires: { topology: 'single' } },
 
-    test: function (done) {
+    test: function () {
       const configuration = this.configuration;
-      const client = configuration.newClient('mangodb://localhost:27017/test?safe=false');
-
-      test.throws(function () {
-        client.connect(function () {
-          test.ok(false, 'Bad URL!');
-        });
-      });
-
-      done();
+      expect(() => configuration.newClient('mangodb://localhost:27017/test?safe=false')).to.throw();
     }
   });
 
@@ -268,9 +268,63 @@ describe('Connection', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient({ w: 1 }, { poolSize: 1, auto_reconnect: false });
+      var client = configuration.newClient({ w: 1 }, { maxPoolSize: 1 });
       test.equal(false, client.isConnected());
       done();
     }
   });
+
+  it(
+    'should be able to connect again after close',
+    withClient(function (client, done) {
+      expect(client.isConnected()).to.be.true;
+
+      const collection = client.db('shouldConnectAfterClose').collection('test');
+      collection.insertOne({ a: 1, b: 2 }, (err, result) => {
+        expect(err).to.not.exist;
+        expect(result).to.exist;
+
+        client.close(err => {
+          expect(err).to.not.exist;
+          expect(client.isConnected()).to.be.false;
+
+          client.connect(err => {
+            expect(err).to.not.exist;
+            expect(client.isConnected()).to.be.true;
+
+            collection.findOne({ a: 1 }, (err, result) => {
+              expect(err).to.not.exist;
+              expect(result).to.exist;
+              expect(result).to.have.property('a', 1);
+              expect(result).to.have.property('b', 2);
+              expect(client.topology.isDestroyed()).to.be.false;
+              done();
+            });
+          });
+        });
+      });
+    })
+  );
+
+  it(
+    'should correctly fail on retry when client has been closed',
+    withClient(function (client, done) {
+      expect(client.isConnected()).to.be.true;
+      const collection = client.db('shouldCorrectlyFailOnRetry').collection('test');
+      collection.insertOne({ a: 1 }, (err, result) => {
+        expect(err).to.not.exist;
+        expect(result).to.exist;
+
+        client.close(true, function (err) {
+          expect(err).to.not.exist;
+          expect(client.isConnected()).to.be.false;
+
+          expect(() => {
+            collection.insertOne({ a: 2 });
+          }).to.throw(/must be connected/);
+          done();
+        });
+      });
+    })
+  );
 });

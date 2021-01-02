@@ -40,7 +40,7 @@ describe('Promises (Db)', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient({ w: 1 }, { poolSize: 1 });
+      var client = configuration.newClient({ w: 1 }, { maxPoolSize: 1 });
       client.connect().then(function (client) {
         client.close(done);
       });
@@ -271,35 +271,6 @@ describe('Promises (Db)', function () {
             });
           });
         });
-      });
-    }
-  });
-
-  it('Should correctly execute executeDbAdminCommand using Promise', {
-    metadata: {
-      requires: {
-        topology: ['single']
-      }
-    },
-
-    test: function (done) {
-      var configuration = this.configuration;
-      var url = configuration.url();
-      url =
-        url.indexOf('?') !== -1
-          ? f('%s&%s', url, 'maxPoolSize=5')
-          : f('%s?%s', url, 'maxPoolSize=5');
-
-      const client = configuration.newClient(url);
-      client.connect().then(function (client) {
-        client
-          .db(configuration.db)
-          .executeDbAdminCommand({ ismaster: true })
-          .then(function (r) {
-            test.ok(r);
-
-            client.close(done);
-          });
       });
     }
   });

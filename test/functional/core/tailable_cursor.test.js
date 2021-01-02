@@ -1,80 +1,42 @@
 'use strict';
-const expect = require('chai').expect;
-const setupDatabase = require('../shared').setupDatabase;
+const { expect } = require('chai');
+const { setupDatabase, withClientV2 } = require('../shared');
 
 describe('Tailable cursor tests', function () {
   before(function () {
     return setupDatabase(this.configuration);
   });
 
-  it('should correctly perform awaitdata', {
-    metadata: {
-      requires: { topology: ['single', 'replicaset', 'sharded'], mongodb: '>=3.2' }
-    },
-
-    test: function (done) {
-      const self = this;
-      const topology = this.configuration.newTopology();
-      const ns = `${this.configuration.db}.cursor_tailable`;
-
-      topology.connect(err => {
-        expect(err).to.not.exist;
-        this.defer(() => topology.close());
-
-        topology.selectServer('primary', (err, server) => {
+  it('should correctly perform awaitData', {
+    metadata: { requires: { mongodb: '>=3.2' } },
+    test: withClientV2((client, done) => {
+      const db = client.db();
+      db.collection('cursor_tailable').drop(() => {
+        db.createCollection('cursor_tailable', { capped: true, size: 10000 }, (err, coll) => {
           expect(err).to.not.exist;
 
-          // Create a capped collection
-          server.command(
-            `${self.configuration.db}.$cmd`,
-            { create: 'cursor_tailable', capped: true, size: 10000 },
-            (cmdErr, cmdRes) => {
-              expect(cmdErr).to.not.exist;
-              expect(cmdRes).to.exist;
+          coll.insertOne({ a: 1 }, (err, res) => {
+            expect(err).to.not.exist;
+            expect(res).property('insertedId').to.exist;
 
-              // Execute the write
-              server.insert(
-                ns,
-                [{ a: 1 }],
-                {
-                  writeConcern: { w: 1 },
-                  ordered: true
-                },
-                (insertErr, results) => {
-                  expect(insertErr).to.not.exist;
-                  expect(results.n).to.equal(1);
+            const cursor = coll.find({}, { batchSize: 2, tailable: true, awaitData: true });
+            cursor.next((err, doc) => {
+              expect(err).to.not.exist;
+              expect(doc).to.exist;
 
-                  // Execute find
-                  const cursor = topology.cursor(ns, {
-                    find: 'cursor_tailable',
-                    filter: {},
-                    batchSize: 2,
-                    tailable: true,
-                    awaitData: true
-                  });
+              const s = new Date();
+              cursor.next(() => {
+                const e = new Date();
+                expect(e.getTime() - s.getTime()).to.be.at.least(300);
 
-                  // Execute next
-                  cursor._next((cursorErr, cursorD) => {
-                    expect(cursorErr).to.not.exist;
-                    expect(cursorD).to.exist;
+                done();
+              });
 
-                    const s = new Date();
-                    cursor._next(() => {
-                      const e = new Date();
-                      expect(e.getTime() - s.getTime()).to.be.at.least(300);
-
-                      // Destroy the server connection
-                      server.destroy(done);
-                    });
-
-                    setTimeout(() => cursor.kill(), 300);
-                  });
-                }
-              );
-            }
-          );
+              setTimeout(() => cursor.close(), 300);
+            });
+          });
         });
       });
-    }
+    })
   });
 });

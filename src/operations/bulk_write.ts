@@ -1,6 +1,5 @@
-import { applyRetryableWrites, applyWriteConcern, Callback } from '../utils';
-import { OperationBase } from './operation';
-import { WriteConcern } from '../write_concern';
+import { Aspect, defineAspects, AbstractOperation } from './operation';
+import type { Callback } from '../utils';
 import type { Collection } from '../collection';
 import type {
   BulkOperationBase,
@@ -9,9 +8,11 @@ import type {
   AnyBulkWriteOperation
 } from '../bulk/common';
 import type { Server } from '../sdam/server';
+import type { ClientSession } from '../sessions';
 
 /** @internal */
-export class BulkWriteOperation extends OperationBase<BulkWriteOptions, BulkWriteResult> {
+export class BulkWriteOperation extends AbstractOperation<BulkWriteResult> {
+  options: BulkWriteOptions;
   collection: Collection;
   operations: AnyBulkWriteOperation[];
 
@@ -21,27 +22,21 @@ export class BulkWriteOperation extends OperationBase<BulkWriteOptions, BulkWrit
     options: BulkWriteOptions
   ) {
     super(options);
-
+    this.options = options;
     this.collection = collection;
     this.operations = operations;
   }
 
-  execute(server: Server, callback: Callback<BulkWriteResult>): void {
+  execute(server: Server, session: ClientSession, callback: Callback<BulkWriteResult>): void {
     const coll = this.collection;
     const operations = this.operations;
-    let options = this.options;
-
-    // Add ignoreUndefined
-    if (coll.s.options.ignoreUndefined) {
-      options = Object.assign({}, options);
-      options.ignoreUndefined = coll.s.options.ignoreUndefined;
-    }
+    const options = { ...this.options, ...this.bsonOptions, readPreference: this.readPreference };
 
     // Create the bulk operation
     const bulk: BulkOperationBase =
-      options.ordered === true || options.ordered == null
-        ? coll.initializeOrderedBulkOp(options)
-        : coll.initializeUnorderedBulkOp(options);
+      options.ordered === false
+        ? coll.initializeUnorderedBulkOp(options)
+        : coll.initializeOrderedBulkOp(options);
 
     // for each op go through and add to the bulk
     try {
@@ -52,15 +47,8 @@ export class BulkWriteOperation extends OperationBase<BulkWriteOptions, BulkWrit
       return callback(err);
     }
 
-    // Final options for retryable writes and write concern
-    let finalOptions = Object.assign({}, options);
-    finalOptions = applyRetryableWrites(finalOptions, coll.s.db);
-    finalOptions = applyWriteConcern(finalOptions, { db: coll.s.db, collection: coll }, options);
-
-    const writeCon = WriteConcern.fromOptions(finalOptions);
-
     // Execute the bulk
-    bulk.execute(writeCon, finalOptions, (err, r) => {
+    bulk.execute({ ...options, session }, (err, r) => {
       // We have connection level error
       if (!r && err) {
         return callback(err);
@@ -71,3 +59,5 @@ export class BulkWriteOperation extends OperationBase<BulkWriteOptions, BulkWrit
     });
   }
 }
+
+defineAspects(BulkWriteOperation, [Aspect.WRITE_OPERATION]);

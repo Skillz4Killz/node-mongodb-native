@@ -1,34 +1,37 @@
 import { PromiseProvider } from '../promise_provider';
-import { Long, ObjectId, Document } from '../bson';
+import { Long, ObjectId, Document, BSONSerializeOptions, resolveBSONOptions } from '../bson';
 import { MongoError, MongoWriteConcernError, AnyError } from '../error';
 import {
-  applyWriteConcern,
   applyRetryableWrites,
   executeLegacyOperation,
   hasAtomicOperators,
   Callback,
   MongoDBNamespace,
-  maxWireVersion
+  getTopology,
+  resolveOptions
 } from '../utils';
 import { executeOperation } from '../operations/execute_operation';
 import { InsertOperation } from '../operations/insert';
-import { UpdateOperation } from '../operations/update';
-import { DeleteOperation } from '../operations/delete';
+import { UpdateOperation, UpdateStatement, makeUpdateStatement } from '../operations/update';
+import { DeleteOperation, DeleteStatement, makeDeleteStatement } from '../operations/delete';
 import { WriteConcern } from '../write_concern';
 import type { Collection } from '../collection';
 import type { Topology } from '../sdam/topology';
-import type { CommandOperationOptions } from '../operations/command';
-import type { CollationOptions } from '../cmap/wire_protocol/write_command';
+import type { CommandOperationOptions, CollationOptions } from '../operations/command';
 import type { Hint } from '../operations/operation';
 
 // Error codes
 const WRITE_CONCERN_ERROR = 64;
 
-export enum BatchType {
-  INSERT = 1,
-  UPDATE = 2,
-  REMOVE = 3
-}
+/** @public */
+export const BatchType = {
+  INSERT: 1,
+  UPDATE: 2,
+  DELETE: 3
+} as const;
+
+/** @public */
+export type BatchTypeId = typeof BatchType[keyof typeof BatchType];
 
 /** @public */
 export interface InsertOneModel {
@@ -114,7 +117,7 @@ export type AnyBulkWriteOperation =
   | { deleteOne: DeleteOneModel }
   | { deleteMany: DeleteManyModel };
 
-/** @internal */
+/** @public */
 export interface BulkResult {
   ok: number;
   writeErrors: WriteError[];
@@ -132,17 +135,19 @@ export interface BulkResult {
 /**
  * Keeps the state of a unordered batch so we can rewrite the results
  * correctly after command execution
+ *
+ * @public
  */
-export class Batch {
+export class Batch<T = Document> {
   originalZeroIndex: number;
   currentIndex: number;
   originalIndexes: number[];
-  batchType: BatchType;
-  operations: Document[];
+  batchType: BatchTypeId;
+  operations: T[];
   size: number;
   sizeBytes: number;
 
-  constructor(batchType: BatchType, originalZeroIndex: number) {
+  constructor(batchType: BatchTypeId, originalZeroIndex: number) {
     this.originalZeroIndex = originalZeroIndex;
     this.currentIndex = 0;
     this.originalIndexes = [];
@@ -160,6 +165,8 @@ export class Batch {
 export class BulkWriteResult {
   result: BulkResult;
 
+  /** Indicates whether this write result was acknowledged. If not, then all other members of this result will be undefined */
+  // acknowledged: Boolean;
   /** Number of documents inserted. */
   insertedCount: number;
   /** Number of documents matched for update. */
@@ -347,7 +354,7 @@ export class WriteConcernError {
   }
 }
 
-/** @internal */
+/** @public */
 export interface BulkWriteOperationError {
   index: number;
   code: number;
@@ -475,12 +482,12 @@ function mergeBatchResults(
   }
 
   // If we have an insert Batch type
-  if (batch.batchType === BatchType.INSERT && result.n) {
+  if (isInsertBatch(batch) && result.n) {
     bulkResult.nInserted = bulkResult.nInserted + result.n;
   }
 
   // If we have an insert Batch type
-  if (batch.batchType === BatchType.REMOVE && result.n) {
+  if (isDeleteBatch(batch) && result.n) {
     bulkResult.nRemoved = bulkResult.nRemoved + result.n;
   }
 
@@ -506,7 +513,7 @@ function mergeBatchResults(
   }
 
   // If we have an update Batch type
-  if (batch.batchType === BatchType.UPDATE && result.n) {
+  if (isUpdateBatch(batch) && result.n) {
     const nModified = result.nModified;
     bulkResult.nUpserted = bulkResult.nUpserted + nUpserted;
     bulkResult.nMatched = bulkResult.nMatched + (result.n - nUpserted);
@@ -550,7 +557,9 @@ function executeCommands(
   function resultHandler(err?: AnyError, result?: Document) {
     // Error is a driver related error not a bulk op error, return early
     if (err && 'message' in err && !(err instanceof MongoWriteConcernError)) {
-      return callback(new BulkWriteError(err, new BulkWriteResult(bulkOperation.s.bulkResult)));
+      return callback(
+        new MongoBulkWriteError(err, new BulkWriteResult(bulkOperation.s.bulkResult))
+      );
     }
 
     if (err instanceof MongoWriteConcernError) {
@@ -570,10 +579,10 @@ function executeCommands(
     executeCommands(bulkOperation, options, callback);
   }
 
-  const finalOptions = Object.assign({ ordered: bulkOperation.isOrdered }, options);
-  if (bulkOperation.s.writeConcern != null) {
-    finalOptions.writeConcern = bulkOperation.s.writeConcern;
-  }
+  const finalOptions = resolveOptions(bulkOperation, {
+    ...options,
+    ordered: bulkOperation.isOrdered
+  });
 
   if (finalOptions.bypassDocumentValidation !== true) {
     delete finalOptions.bypassDocumentValidation;
@@ -582,16 +591,6 @@ function executeCommands(
   // Set an operationIf if provided
   if (bulkOperation.operationId) {
     resultHandler.operationId = bulkOperation.operationId;
-  }
-
-  // Serialize functions
-  if (bulkOperation.s.options.serializeFunctions) {
-    finalOptions.serializeFunctions = true;
-  }
-
-  // Ignore undefined
-  if (bulkOperation.s.options.ignoreUndefined) {
-    finalOptions.ignoreUndefined = true;
   }
 
   // Is the bypassDocumentValidation options specific
@@ -605,30 +604,30 @@ function executeCommands(
   }
 
   if (finalOptions.retryWrites) {
-    if (batch.batchType === BatchType.UPDATE) {
+    if (isUpdateBatch(batch)) {
       finalOptions.retryWrites = finalOptions.retryWrites && !batch.operations.some(op => op.multi);
     }
 
-    if (batch.batchType === BatchType.REMOVE) {
+    if (isDeleteBatch(batch)) {
       finalOptions.retryWrites =
         finalOptions.retryWrites && !batch.operations.some(op => op.limit === 0);
     }
   }
 
   try {
-    if (batch.batchType === BatchType.INSERT) {
+    if (isInsertBatch(batch)) {
       executeOperation(
         bulkOperation.s.topology,
         new InsertOperation(bulkOperation.s.namespace, batch.operations, finalOptions),
         resultHandler
       );
-    } else if (batch.batchType === BatchType.UPDATE) {
+    } else if (isUpdateBatch(batch)) {
       executeOperation(
         bulkOperation.s.topology,
         new UpdateOperation(bulkOperation.s.namespace, batch.operations, finalOptions),
         resultHandler
       );
-    } else if (batch.batchType === BatchType.REMOVE) {
+    } else if (isDeleteBatch(batch)) {
       executeOperation(
         bulkOperation.s.topology,
         new DeleteOperation(bulkOperation.s.namespace, batch.operations, finalOptions),
@@ -660,7 +659,10 @@ function handleMongoWriteConcernError(
   );
 
   callback(
-    new BulkWriteError(new MongoError(wrappedWriteConcernError), new BulkWriteResult(bulkResult))
+    new MongoBulkWriteError(
+      new MongoError(wrappedWriteConcernError),
+      new BulkWriteResult(bulkResult)
+    )
   );
 }
 
@@ -669,24 +671,49 @@ function handleMongoWriteConcernError(
  * @public
  * @category Error
  */
-export class BulkWriteError extends MongoError {
-  result?: BulkWriteResult;
+export class MongoBulkWriteError extends MongoError {
+  result: BulkWriteResult;
 
-  /** Creates a new BulkWriteError */
-  constructor(error?: AnyError, result?: BulkWriteResult) {
+  /** Number of documents inserted. */
+  insertedCount: number;
+  /** Number of documents matched for update. */
+  matchedCount: number;
+  /** Number of documents modified. */
+  modifiedCount: number;
+  /** Number of documents deleted. */
+  deletedCount: number;
+  /** Number of documents upserted. */
+  upsertedCount: number;
+  /** Inserted document generated Id's, hash key is the index of the originating operation */
+  insertedIds: { [key: number]: ObjectId };
+  /** Upserted document generated Id's, hash key is the index of the originating operation */
+  upsertedIds: { [key: number]: ObjectId };
+
+  /** Creates a new MongoBulkWriteError */
+  constructor(error: AnyError, result: BulkWriteResult) {
     super(error as Error);
     Object.assign(this, error);
 
-    this.name = 'BulkWriteError';
+    this.name = 'MongoBulkWriteError';
     this.result = result;
+
+    this.insertedCount = result.insertedCount;
+    this.matchedCount = result.matchedCount;
+    this.modifiedCount = result.modifiedCount;
+    this.deletedCount = result.deletedCount;
+    this.upsertedCount = result.upsertedCount;
+    this.insertedIds = result.insertedIds;
+    this.upsertedIds = result.upsertedIds;
   }
 }
 
 /**
  * A builder object that is returned from {@link BulkOperationBase#find}.
  * Is used to build a write operation that involves a query filter.
+ *
+ * @public
  */
-class FindOperators {
+export class FindOperators {
   bulkOperation: BulkOperationBase;
 
   /**
@@ -699,97 +726,66 @@ class FindOperators {
 
   /** Add a multiple update operation to the bulk operation */
   update(updateDocument: Document): BulkOperationBase {
-    if (!this.bulkOperation.s.currentOp) {
-      this.bulkOperation.s.currentOp = {};
-    }
-
-    // Perform upsert
-    const upsert =
-      typeof this.bulkOperation.s.currentOp.upsert === 'boolean'
-        ? this.bulkOperation.s.currentOp.upsert
-        : false;
-
-    // Establish the update command
-    const document: Document = {
-      q: this.bulkOperation.s.currentOp.selector,
-      u: updateDocument,
-      multi: true,
-      upsert: upsert
-    };
-
-    if (updateDocument.hint) {
-      document.hint = updateDocument.hint;
-    }
-
-    // Clear out current Op
-    this.bulkOperation.s.currentOp = undefined;
-    return this.bulkOperation.addToOperationsList(BatchType.UPDATE, document);
+    const currentOp = buildCurrentOp(this.bulkOperation);
+    return this.bulkOperation.addToOperationsList(
+      BatchType.UPDATE,
+      makeUpdateStatement(currentOp.selector, updateDocument, {
+        ...currentOp,
+        multi: true
+      })
+    );
   }
 
   /** Add a single update operation to the bulk operation */
   updateOne(updateDocument: Document): BulkOperationBase {
-    if (!this.bulkOperation.s.currentOp) {
-      this.bulkOperation.s.currentOp = {};
-    }
-
-    // Perform upsert
-    const upsert =
-      typeof this.bulkOperation.s.currentOp.upsert === 'boolean'
-        ? this.bulkOperation.s.currentOp.upsert
-        : false;
-
-    // Establish the update command
-    const document: Document = {
-      q: this.bulkOperation.s.currentOp.selector,
-      u: updateDocument,
-      multi: false,
-      upsert: upsert
-    };
-
-    if (updateDocument.hint) {
-      document.hint = updateDocument.hint;
-    }
-
     if (!hasAtomicOperators(updateDocument)) {
       throw new TypeError('Update document requires atomic operators');
     }
 
-    // Clear out current Op
-    this.bulkOperation.s.currentOp = undefined;
-    return this.bulkOperation.addToOperationsList(BatchType.UPDATE, document);
+    const currentOp = buildCurrentOp(this.bulkOperation);
+    return this.bulkOperation.addToOperationsList(
+      BatchType.UPDATE,
+      makeUpdateStatement(currentOp.selector, updateDocument, { ...currentOp, multi: false })
+    );
   }
 
   /** Add a replace one operation to the bulk operation */
   replaceOne(replacement: Document): BulkOperationBase {
-    if (!this.bulkOperation.s.currentOp) {
-      this.bulkOperation.s.currentOp = {};
-    }
-
-    // Perform upsert
-    const upsert =
-      typeof this.bulkOperation.s.currentOp.upsert === 'boolean'
-        ? this.bulkOperation.s.currentOp.upsert
-        : false;
-
-    // Establish the update command
-    const document: Document = {
-      q: this.bulkOperation.s.currentOp.selector,
-      u: replacement,
-      multi: false,
-      upsert: upsert
-    };
-
-    if (replacement.hint) {
-      document.hint = replacement.hint;
-    }
-
     if (hasAtomicOperators(replacement)) {
       throw new TypeError('Replacement document must not use atomic operators');
     }
 
-    // Clear out current Op
-    this.bulkOperation.s.currentOp = undefined;
-    return this.bulkOperation.addToOperationsList(BatchType.UPDATE, document);
+    const currentOp = buildCurrentOp(this.bulkOperation);
+    return this.bulkOperation.addToOperationsList(
+      BatchType.UPDATE,
+      makeUpdateStatement(currentOp.selector, replacement, { ...currentOp, multi: false })
+    );
+  }
+
+  /** Add a delete one operation to the bulk operation */
+  deleteOne(): BulkOperationBase {
+    const currentOp = buildCurrentOp(this.bulkOperation);
+    return this.bulkOperation.addToOperationsList(
+      BatchType.DELETE,
+      makeDeleteStatement(currentOp.selector, { ...currentOp, limit: 1 })
+    );
+  }
+
+  /** Add a delete many operation to the bulk operation */
+  delete(): BulkOperationBase {
+    const currentOp = buildCurrentOp(this.bulkOperation);
+    return this.bulkOperation.addToOperationsList(
+      BatchType.DELETE,
+      makeDeleteStatement(currentOp.selector, { ...currentOp, limit: 0 })
+    );
+  }
+
+  removeOne(): BulkOperationBase {
+    return this.deleteOne();
+  }
+
+  remove(): BulkOperationBase {
+    return this.delete();
   }
 
   /** Upsert modifier for update bulk operation, noting that this operation is an upsert. */
@@ -802,50 +798,19 @@ class FindOperators {
     return this;
   }
 
-  /** Add a delete one operation to the bulk operation */
-  deleteOne(): BulkOperationBase {
+  /** Specifies the collation for the query condition. */
+  collation(collation: CollationOptions): this {
     if (!this.bulkOperation.s.currentOp) {
       this.bulkOperation.s.currentOp = {};
     }
 
-    // Establish the update command
-    const document = {
-      q: this.bulkOperation.s.currentOp.selector,
-      limit: 1
-    };
-
-    // Clear out current Op
-    this.bulkOperation.s.currentOp = undefined;
-    return this.bulkOperation.addToOperationsList(BatchType.REMOVE, document);
-  }
-
-  /** Add a delete many operation to the bulk operation */
-  delete(): BulkOperationBase {
-    if (!this.bulkOperation.s.currentOp) {
-      this.bulkOperation.s.currentOp = {};
-    }
-
-    // Establish the update command
-    const document = {
-      q: this.bulkOperation.s.currentOp.selector,
-      limit: 0
-    };
-
-    // Clear out current Op
-    this.bulkOperation.s.currentOp = undefined;
-    return this.bulkOperation.addToOperationsList(BatchType.REMOVE, document);
-  }
-
-  removeOne() {
-    return this.deleteOne();
-  }
-
-  remove() {
-    return this.delete();
+    this.bulkOperation.s.currentOp.collation = collation;
+    return this;
   }
 }
 
-interface BulkOperationPrivate {
+/** @internal */
+export interface BulkOperationPrivate {
   bulkResult: BulkResult;
   currentBatch?: Batch;
   currentIndex: number;
@@ -870,6 +835,8 @@ interface BulkOperationPrivate {
   topology: Topology;
   // Options
   options: BulkWriteOptions;
+  // BSON options
+  bsonOptions: BSONSerializeOptions;
   // Document used to build a bulk operation
   currentOp?: Document;
   // Executed
@@ -895,8 +862,10 @@ export interface BulkWriteOptions extends CommandOperationOptions {
   forceServerObjectId?: boolean;
 }
 
+/** @public */
 export abstract class BulkOperationBase {
   isOrdered: boolean;
+  /** @internal */
   s: BulkOperationPrivate;
   operationId?: number;
 
@@ -908,7 +877,7 @@ export abstract class BulkOperationBase {
     // determine whether bulkOperation is ordered or unordered
     this.isOrdered = isOrdered;
 
-    const topology = collection.s.topology;
+    const topology = getTopology(collection);
     options = options == null ? {} : options;
     // TODO Bring from driver information in isMaster
     // Get the namespace for the write operations
@@ -938,10 +907,9 @@ export abstract class BulkOperationBase {
     //   + 1 bytes for null terminator
     const maxKeySize = (maxWriteBatchSize - 1).toString(10).length + 2;
 
-    // Final options for retryable writes and write concern
+    // Final options for retryable writes
     let finalOptions = Object.assign({}, options);
     finalOptions = applyRetryableWrites(finalOptions, collection.s.db);
-    finalOptions = applyWriteConcern(finalOptions, { collection: collection }, options);
 
     // Final results
     const bulkResult: BulkResult = {
@@ -985,6 +953,8 @@ export abstract class BulkOperationBase {
       topology,
       // Options
       options: finalOptions,
+      // BSON options
+      bsonOptions: resolveBSONOptions(options),
       // Current operation
       currentOp,
       // Executed
@@ -1019,7 +989,7 @@ export abstract class BulkOperationBase {
    * ```
    */
   insert(document: Document): BulkOperationBase {
-    if (document._id == null && shouldForceServerObjectId(this)) {
+    if (document._id == null && !shouldForceServerObjectId(this)) {
       document._id = new ObjectId();
     }
 
@@ -1050,7 +1020,7 @@ export abstract class BulkOperationBase {
    * bulkOp.find({ h: 8 }).delete();
    *
    * // Add a replaceOne
-   * bulkOp.find({ i: 9 }).replaceOne({ j: 10 });
+   * bulkOp.find({ i: 9 }).replaceOne({writeConcern: { j: 10 }});
    *
    * // Update using a pipeline (requires Mongodb 4.2 or higher)
    * bulk.find({ k: 11, y: { $exists: true }, z: { $exists: true } }).updateOne([
@@ -1102,61 +1072,80 @@ export abstract class BulkOperationBase {
 
     if ('replaceOne' in op || 'updateOne' in op || 'updateMany' in op) {
       if ('replaceOne' in op) {
-        const updateStatement = makeUpdateStatement(this.s.topology, op.replaceOne, false);
+        if ('q' in op.replaceOne) {
+          throw new TypeError('Raw operations are not allowed');
+        }
+        const updateStatement = makeUpdateStatement(
+          op.replaceOne.filter,
+          op.replaceOne.replacement,
+          { ...op.replaceOne, multi: false }
+        );
         if (hasAtomicOperators(updateStatement.u)) {
           throw new TypeError('Replacement document must not use atomic operators');
         }
-
-        return this.addToOperationsList(
-          BatchType.UPDATE,
-          makeUpdateStatement(this.s.topology, op.replaceOne, false)
-        );
+        return this.addToOperationsList(BatchType.UPDATE, updateStatement);
       }
 
       if ('updateOne' in op) {
-        const updateStatement = makeUpdateStatement(this.s.topology, op.updateOne, false);
+        if ('q' in op.updateOne) {
+          throw new TypeError('Raw operations are not allowed');
+        }
+        const updateStatement = makeUpdateStatement(op.updateOne.filter, op.updateOne.update, {
+          ...op.updateOne,
+          multi: false
+        });
         if (!hasAtomicOperators(updateStatement.u)) {
           throw new TypeError('Update document requires atomic operators');
         }
-
         return this.addToOperationsList(BatchType.UPDATE, updateStatement);
       }
 
       if ('updateMany' in op) {
-        const updateStatement = makeUpdateStatement(this.s.topology, op.updateMany, true);
+        if ('q' in op.updateMany) {
+          throw new TypeError('Raw operations are not allowed');
+        }
+        const updateStatement = makeUpdateStatement(op.updateMany.filter, op.updateMany.update, {
+          ...op.updateMany,
+          multi: true
+        });
         if (!hasAtomicOperators(updateStatement.u)) {
           throw new TypeError('Update document requires atomic operators');
         }
-
         return this.addToOperationsList(BatchType.UPDATE, updateStatement);
       }
     }
 
     if ('removeOne' in op) {
       return this.addToOperationsList(
-        BatchType.REMOVE,
-        makeDeleteStatement(this.s.topology, op.removeOne, false)
+        BatchType.DELETE,
+        makeDeleteStatement(op.removeOne.filter, { ...op.removeOne, limit: 1 })
       );
     }
 
     if ('removeMany' in op) {
       return this.addToOperationsList(
-        BatchType.REMOVE,
-        makeDeleteStatement(this.s.topology, op.removeMany, true)
+        BatchType.DELETE,
+        makeDeleteStatement(op.removeMany.filter, { ...op.removeMany, limit: 0 })
       );
     }
 
     if ('deleteOne' in op) {
+      if ('q' in op.deleteOne) {
+        throw new TypeError('Raw operations are not allowed');
+      }
       return this.addToOperationsList(
-        BatchType.REMOVE,
-        makeDeleteStatement(this.s.topology, op.deleteOne, false)
+        BatchType.DELETE,
+        makeDeleteStatement(op.deleteOne.filter, { ...op.deleteOne, limit: 1 })
       );
     }
 
     if ('deleteMany' in op) {
+      if ('q' in op.deleteMany) {
+        throw new TypeError('Raw operations are not allowed');
+      }
       return this.addToOperationsList(
-        BatchType.REMOVE,
-        makeDeleteStatement(this.s.topology, op.deleteMany, true)
+        BatchType.DELETE,
+        makeDeleteStatement(op.deleteMany.filter, { ...op.deleteMany, limit: 0 })
       );
     }
 
@@ -1166,24 +1155,41 @@ export abstract class BulkOperationBase {
     );
   }
 
+  get bsonOptions(): BSONSerializeOptions {
+    return this.s.bsonOptions;
+  }
+
+  get writeConcern(): WriteConcern | undefined {
+    return this.s.writeConcern;
+  }
+
+  get batches(): Batch[] {
+    const batches = [...this.s.batches];
+    if (this.isOrdered) {
+      if (this.s.currentBatch) batches.push(this.s.currentBatch);
+    } else {
+      if (this.s.currentInsertBatch) batches.push(this.s.currentInsertBatch);
+      if (this.s.currentUpdateBatch) batches.push(this.s.currentUpdateBatch);
+      if (this.s.currentRemoveBatch) batches.push(this.s.currentRemoveBatch);
+    }
+    return batches;
+  }
+
   /** An internal helper method. Do not invoke directly. Will be going away in the future */
   execute(
-    _writeConcern?: WriteConcern,
     options?: BulkWriteOptions,
     callback?: Callback<BulkWriteResult>
-  ): Promise<void> | void {
+  ): Promise<BulkWriteResult> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
-
-    if (typeof _writeConcern === 'function') {
-      callback = _writeConcern as Callback;
-    } else if (_writeConcern && typeof _writeConcern === 'object') {
-      this.s.writeConcern = _writeConcern;
-    }
+    options = options ?? {};
 
     if (this.s.executed) {
-      const executedError = new MongoError('batch cannot be re-executed');
-      return handleEarlyError(executedError, callback);
+      return handleEarlyError(new MongoError('Batch cannot be re-executed'), callback);
+    }
+
+    const writeConcern = WriteConcern.fromOptions(options);
+    if (writeConcern) {
+      this.s.writeConcern = writeConcern;
     }
 
     // If we have current batch
@@ -1200,6 +1206,7 @@ export abstract class BulkOperationBase {
       return handleEarlyError(emptyBatchError, callback);
     }
 
+    this.s.executed = true;
     return executeLegacyOperation(this.s.topology, executeCommands, [this, options, callback]);
   }
 
@@ -1217,7 +1224,7 @@ export abstract class BulkOperationBase {
         : 'write operation failed';
 
       callback(
-        new BulkWriteError(
+        new MongoBulkWriteError(
           new MongoError({
             message: msg,
             code: this.s.bulkResult.writeErrors[0].code,
@@ -1232,13 +1239,13 @@ export abstract class BulkOperationBase {
 
     const writeConcernError = writeResult.getWriteConcernError();
     if (writeConcernError) {
-      callback(new BulkWriteError(new MongoError(writeConcernError), writeResult));
+      callback(new MongoBulkWriteError(new MongoError(writeConcernError), writeResult));
       return true;
     }
   }
 
   abstract addToOperationsList(
-    batchType: BatchType,
+    batchType: BatchTypeId,
     document: Document | UpdateStatement | DeleteStatement
   ): this;
 }
@@ -1254,7 +1261,7 @@ Object.defineProperty(BulkOperationBase.prototype, 'length', {
 function handleEarlyError(
   err?: AnyError,
   callback?: Callback<BulkWriteResult>
-): Promise<void> | void {
+): Promise<BulkWriteResult> | void {
   const Promise = PromiseProvider.get();
   if (typeof callback === 'function') {
     callback(err);
@@ -1276,120 +1283,21 @@ function shouldForceServerObjectId(bulkOperation: BulkOperationBase): boolean {
   return false;
 }
 
-/** @internal */
-export interface UpdateStatement {
-  /** The query that matches documents to update. */
-  q: Document;
-  /** The modifications to apply. */
-  u: Document | Document[];
-  /**  If true, perform an insert if no documents match the query. */
-  upsert?: boolean;
-  /** If true, updates all documents that meet the query criteria. */
-  multi?: boolean;
-  /** Specifies the collation to use for the operation. */
-  collation?: CollationOptions;
-  /** An array of filter documents that determines which array elements to modify for an update operation on an array field. */
-  arrayFilters?: Document[];
-  /** A document or string that specifies the index to use to support the query predicate. */
-  hint?: Hint;
+function isInsertBatch(batch: Batch): boolean {
+  return batch.batchType === BatchType.INSERT;
 }
 
-function makeUpdateStatement(
-  topology: Topology,
-  model: ReplaceOneModel | UpdateOneModel | UpdateManyModel,
-  multi: boolean
-): UpdateStatement {
-  // NOTE: legacy support for a raw statement, consider removing
-  if (isUpdateStatement(model)) {
-    if ('collation' in model && maxWireVersion(topology) < 5) {
-      throw new TypeError('Topology does not support collation');
-    }
-
-    return model as UpdateStatement;
-  }
-
-  const statement: UpdateStatement = {
-    q: model.filter,
-    u: 'update' in model ? model.update : model.replacement,
-    multi,
-    upsert: 'upsert' in model ? model.upsert : false
-  };
-
-  if ('collation' in model) {
-    if (maxWireVersion(topology) < 5) {
-      throw new TypeError('Topology does not support collation');
-    }
-
-    statement.collation = model.collation;
-  }
-
-  if ('arrayFilters' in model) {
-    // TODO: this check should be done at command construction against a connection, not a topology
-    if (maxWireVersion(topology) < 6) {
-      throw new TypeError('arrayFilters are only supported on MongoDB 3.6+');
-    }
-
-    statement.arrayFilters = model.arrayFilters;
-  }
-
-  if ('hint' in model) {
-    statement.hint = model.hint;
-  }
-
-  return statement;
+function isUpdateBatch(batch: Batch): batch is Batch<UpdateStatement> {
+  return batch.batchType === BatchType.UPDATE;
 }
 
-function isUpdateStatement(model: Document): model is UpdateStatement {
-  return 'q' in model;
+function isDeleteBatch(batch: Batch): batch is Batch<DeleteStatement> {
+  return batch.batchType === BatchType.DELETE;
 }
 
-/** @internal */
-export interface DeleteStatement {
-  /** The query that matches documents to delete. */
-  q: Document;
-  /** The number of matching documents to delete. */
-  limit: number;
-  /** Specifies the collation to use for the operation. */
-  collation?: CollationOptions;
-  /** A document or string that specifies the index to use to support the query predicate. */
-  hint?: Hint;
-}
-
-function makeDeleteStatement(
-  topology: Topology,
-  model: DeleteOneModel | DeleteManyModel,
-  multi: boolean
-): DeleteStatement {
-  // NOTE: legacy support for a raw statement, consider removing
-  if (isDeleteStatement(model)) {
-    if ('collation' in model && maxWireVersion(topology) < 5) {
-      throw new TypeError('Topology does not support collation');
-    }
-
-    model.limit = multi ? 0 : 1;
-    return model as DeleteStatement;
-  }
-
-  const statement: DeleteStatement = {
-    q: model.filter,
-    limit: multi ? 0 : 1
-  };
-
-  if ('collation' in model) {
-    if (maxWireVersion(topology) < 5) {
-      throw new TypeError('Topology does not support collation');
-    }
-
-    statement.collation = model.collation;
-  }
-
-  if ('hint' in model) {
-    statement.hint = model.hint;
-  }
-
-  return statement;
-}
-
-function isDeleteStatement(model: Document): model is DeleteStatement {
-  return 'q' in model;
+function buildCurrentOp(bulkOp: BulkOperationBase): Document {
+  let { currentOp } = bulkOp.s;
+  bulkOp.s.currentOp = undefined;
+  if (!currentOp) currentOp = {};
+  return currentOp;
 }

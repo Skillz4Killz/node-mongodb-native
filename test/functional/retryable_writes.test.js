@@ -21,7 +21,9 @@ describe('Retryable Writes', function () {
             }
 
             return Promise.resolve()
-              .then(() => (ctx.failPointName ? turnOffFailPoint(ctx.db, ctx.failPointName) : {}))
+              .then(() =>
+                ctx.failPointName ? turnOffFailPoint(ctx.client, ctx.failPointName) : {}
+              )
               .then(() => ctx.client.close())
               .then(() => (ctx = {}));
           });
@@ -46,10 +48,9 @@ describe('Retryable Writes', function () {
 function executeScenarioSetup(scenario, test, config, ctx) {
   const url = config.url();
   const options = Object.assign({}, test.clientOptions, {
-    haInterval: 100,
     heartbeatFrequencyMS: 100,
     monitorCommands: true,
-    minSize: 10
+    minPoolSize: 10
   });
 
   ctx.failPointName = test.failPoint && test.failPoint.configureFailPoint;
@@ -76,7 +77,7 @@ function executeScenarioSetup(scenario, test, config, ctx) {
         ? ctx.collection.insertMany(scenario.data)
         : {}
     )
-    .then(() => (test.failPoint ? ctx.db.executeDbAdminCommand(test.failPoint) : {}));
+    .then(() => (test.failPoint ? ctx.client.db('admin').command(test.failPoint) : {}));
 }
 
 function executeScenarioTest(test, ctx) {
@@ -102,7 +103,7 @@ function executeScenarioTest(test, ctx) {
             if (errorLabelsOmit) expect(err.errorLabels).to.not.have.members(errorLabelsOmit);
           });
       } else if (test.outcome.result) {
-        const expected = transformToFixUpsertedId(test.outcome.result);
+        const expected = test.outcome.result;
         result = result.then(transformToResultValue).then(r => expect(r).to.deep.include(expected));
       }
 
@@ -171,41 +172,9 @@ function transformToResultValue(result) {
   return result && result.value ? result.value : result;
 }
 
-/**
- * Transforms expected values from the proper test format to
- * our (improper) actual output for upsertedId.
- *
- * @param {any} result
- */
-function transformToFixUpsertedId(result) {
-  if (Array.isArray(result)) {
-    return result.map(transformToFixUpsertedId);
-  }
-
-  if (typeof result === 'object') {
-    const ret = {};
-    for (let key in result) {
-      const value = result[key];
-      if (key === 'upsertedId') {
-        ret[key] = { index: 0, _id: value };
-      } else {
-        ret[key] = transformToFixUpsertedId(value);
-      }
-    }
-    return ret;
-  }
-
-  return result;
-}
-
-/**
- * Runs a command that turns off a fail point
- *
- * @param {any} db
- * @param {any} name
- */
-function turnOffFailPoint(db, name) {
-  return db.executeDbAdminCommand({
+/** Runs a command that turns off a fail point */
+function turnOffFailPoint(client, name) {
+  return client.db('admin').command({
     configureFailPoint: name,
     mode: 'off'
   });

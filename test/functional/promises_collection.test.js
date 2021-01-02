@@ -31,8 +31,7 @@ describe('Promises (Collection)', function () {
         db.collection('insertOne')
           .insertOne({ a: 1 })
           .then(function (r) {
-            test.equal(1, r.insertedCount);
-
+            expect(r).property('insertedId').to.exist;
             client.close(done);
           });
       });
@@ -49,8 +48,7 @@ describe('Promises (Collection)', function () {
     test: function (done) {
       var configuration = this.configuration;
       var client = configuration.newClient(configuration.writeConcernMax(), {
-        poolSize: 1,
-        auto_reconnect: false
+        maxPoolSize: 1
       });
 
       client.connect().then(function (client) {
@@ -66,8 +64,8 @@ describe('Promises (Collection)', function () {
         // BEGIN
         // Get the collection
         var col = db.collection('find_one_and_delete_with_promise_no_option');
-        col.insertMany([{ a: 1, b: 1 }], { w: 1 }).then(function (r) {
-          test.equal(1, r.result.n);
+        col.insertMany([{ a: 1, b: 1 }], { writeConcern: { w: 1 } }).then(function (r) {
+          expect(r).property('insertedCount').to.equal(1);
 
           col
             .findOneAndDelete({ a: 1 })
@@ -96,8 +94,7 @@ describe('Promises (Collection)', function () {
     test: function (done) {
       var configuration = this.configuration;
       var client = configuration.newClient(configuration.writeConcernMax(), {
-        poolSize: 1,
-        auto_reconnect: false
+        maxPoolSize: 1
       });
 
       client.connect().then(function (client) {
@@ -113,8 +110,8 @@ describe('Promises (Collection)', function () {
         // BEGIN
         // Get the collection
         var col = db.collection('find_one_and_update_with_promise_no_option');
-        col.insertMany([{ a: 1, b: 1 }], { w: 1 }).then(function (r) {
-          test.equal(1, r.result.n);
+        col.insertMany([{ a: 1, b: 1 }], { writeConcern: { w: 1 } }).then(function (r) {
+          expect(r).property('insertedCount').to.equal(1);
 
           col
             .findOneAndUpdate({ a: 1 }, { $set: { a: 1 } })
@@ -145,8 +142,7 @@ describe('Promises (Collection)', function () {
       test: function (done) {
         var configuration = this.configuration;
         var client = configuration.newClient(configuration.writeConcernMax(), {
-          poolSize: 1,
-          auto_reconnect: false
+          maxPoolSize: 1
         });
 
         client.connect().then(function (client) {
@@ -162,8 +158,8 @@ describe('Promises (Collection)', function () {
           // BEGIN
           // Get the collection
           var col = db.collection('find_one_and_replace_with_promise_no_option');
-          col.insertMany([{ a: 1, b: 1 }], { w: 1 }).then(function (r) {
-            test.equal(1, r.result.n);
+          col.insertMany([{ a: 1, b: 1 }], { writeConcern: { w: 1 } }).then(function (r) {
+            expect(r).property('insertedCount').to.equal(1);
 
             col
               .findOneAndReplace({ a: 1 }, { a: 1 })
@@ -193,8 +189,7 @@ describe('Promises (Collection)', function () {
     test: function (done) {
       var configuration = this.configuration;
       var client = configuration.newClient(configuration.writeConcernMax(), {
-        poolSize: 1,
-        auto_reconnect: false
+        maxPoolSize: 1
       });
       var error = null;
       var result = null;
@@ -238,46 +233,15 @@ describe('Promises (Collection)', function () {
           : f('%s?%s', url, 'maxPoolSize=100');
 
       const client = configuration.newClient(url);
-      client.connect().then(function (client) {
-        var db = client.db(configuration.db);
-        db.collection('insertMany_Promise_error')
-          .insertMany({ a: 1 })
-          .then(function () {})
-          .catch(function (e) {
-            test.ok(e != null);
+      client.connect().then(() => {
+        this.defer(() => client.close());
 
-            client.close(done);
-          });
-      });
-    }
-  });
+        const db = client.db(configuration.db);
+        expect(() => {
+          db.collection('insertMany_Promise_error').insertMany({ a: 1 });
+        }).to.throw(/docs parameter must be an array of documents/);
 
-  it('Should correctly return failing Promise when array passed into insertOne', {
-    metadata: {
-      requires: {
-        topology: ['single', 'replicaset', 'sharded', 'ssl', 'heap', 'wiredtiger']
-      }
-    },
-
-    test: function (done) {
-      var configuration = this.configuration;
-      var url = configuration.url();
-      url =
-        url.indexOf('?') !== -1
-          ? f('%s&%s', url, 'maxPoolSize=100')
-          : f('%s?%s', url, 'maxPoolSize=100');
-
-      const client = configuration.newClient(url);
-      client.connect().then(function (client) {
-        var db = client.db(configuration.db);
-        db.collection('insertOne_Promise_error')
-          .insertOne([{ a: 1 }])
-          .then(function () {})
-          .catch(function (e) {
-            test.ok(e != null);
-
-            client.close(done);
-          });
+        done();
       });
     }
   });
@@ -300,7 +264,9 @@ describe('Promises (Collection)', function () {
       const client = configuration.newClient(url);
       client.connect().then(function (client) {
         var db = client.db(configuration.db);
-        var bulk = db.collection('unordered_bulk_promise_form').initializeUnorderedBulkOp({ w: 1 });
+        var bulk = db
+          .collection('unordered_bulk_promise_form')
+          .initializeUnorderedBulkOp({ writeConcern: { w: 1 } });
         bulk.insert({ a: 1 });
         return bulk
           .execute()
@@ -333,7 +299,9 @@ describe('Promises (Collection)', function () {
       const client = configuration.newClient(url);
       client.connect().then(function (client) {
         var db = client.db(configuration.db);
-        var bulk = db.collection('unordered_bulk_promise_form').initializeOrderedBulkOp({ w: 1 });
+        var bulk = db
+          .collection('unordered_bulk_promise_form')
+          .initializeOrderedBulkOp({ writeConcern: { w: 1 } });
         bulk.insert({ a: 1 });
         return bulk
           .execute()

@@ -4,7 +4,7 @@ const { expect } = require('chai');
 const mock = require('mongodb-mock-server');
 
 const test = {};
-describe('Sessions', function () {
+describe('Sessions - unit/sessions', function () {
   describe('Collection', function () {
     afterEach(() => mock.cleanup());
     beforeEach(() => {
@@ -29,7 +29,7 @@ describe('Sessions', function () {
             request.reply({ ok: 1, operationTime: insertOperationTime });
           } else if (doc.find) {
             findCommand = doc;
-            request.reply({ ok: 1 });
+            request.reply({ ok: 1, cursor: { id: 0, firstBatch: [] } });
           } else if (doc.endSessions) {
             request.reply({ ok: 1 });
           }

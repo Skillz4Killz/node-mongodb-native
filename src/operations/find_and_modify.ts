@@ -3,8 +3,6 @@ import {
   maxWireVersion,
   applyRetryableWrites,
   decorateWithCollation,
-  applyWriteConcern,
-  formattedOrderClause,
   hasAtomicOperators,
   Callback
 } from '../utils';
@@ -14,7 +12,8 @@ import { defineAspects, Aspect } from './operation';
 import type { Document } from '../bson';
 import type { Server } from '../sdam/server';
 import type { Collection } from '../collection';
-import type { Sort } from './find';
+import { Sort, formatSort } from '../sort';
+import type { ClientSession } from '../sessions';
 
 /** @public */
 export interface FindAndModifyOptions extends CommandOperationOptions {
@@ -42,7 +41,8 @@ export interface FindAndModifyOptions extends CommandOperationOptions {
 }
 
 /** @internal */
-export class FindAndModifyOperation extends CommandOperation<FindAndModifyOptions, Document> {
+export class FindAndModifyOperation extends CommandOperation<Document> {
+  options: FindAndModifyOptions;
   collection: Collection;
   query: Document;
   sort?: Sort;
@@ -56,6 +56,7 @@ export class FindAndModifyOperation extends CommandOperation<FindAndModifyOption
     options?: FindAndModifyOptions
   ) {
     super(collection, options);
+    this.options = options ?? {};
 
     // force primary read preference
     this.readPreference = ReadPreference.primary;
@@ -66,12 +67,12 @@ export class FindAndModifyOperation extends CommandOperation<FindAndModifyOption
     this.doc = doc;
   }
 
-  execute(server: Server, callback: Callback<Document>): void {
+  execute(server: Server, session: ClientSession, callback: Callback<Document>): void {
     const coll = this.collection;
     const query = this.query;
-    const sort = formattedOrderClause(this.sort);
+    const sort = formatSort(this.sort);
     const doc = this.doc;
-    let options = this.options;
+    let options = { ...this.options, ...this.bsonOptions };
 
     // Create findAndModify command object
     const cmd: Document = {
@@ -105,16 +106,11 @@ export class FindAndModifyOperation extends CommandOperation<FindAndModifyOption
       cmd.maxTimeMS = options.maxTimeMS;
     }
 
-    // Either use override on the function, or go back to default on either the collection
-    // level or db
-    options.serializeFunctions = options.serializeFunctions || coll.s.serializeFunctions;
-
     // No check on the documents
     options.checkKeys = false;
 
-    // Final options for retryable writes and write concern
+    // Final options for retryable writes
     options = applyRetryableWrites(options, coll.s.db);
-    options = applyWriteConcern(options, { db: coll.s.db, collection: coll }, options);
 
     // Decorate the findAndModify command with the write Concern
     if (options.writeConcern) {
@@ -148,8 +144,13 @@ export class FindAndModifyOperation extends CommandOperation<FindAndModifyOption
       cmd.hint = options.hint;
     }
 
+    if (this.explain && maxWireVersion(server) < 4) {
+      callback(new MongoError(`server ${server.name} does not support explain on findAndModify`));
+      return;
+    }
+
     // Execute the command
-    super.executeCommand(server, cmd, (err, result) => {
+    super.executeCommand(server, session, cmd, (err, result) => {
       if (err) return callback(err);
       return callback(undefined, result);
     });
@@ -236,4 +237,8 @@ export class FindOneAndUpdateOperation extends FindAndModifyOperation {
   }
 }
 
-defineAspects(FindAndModifyOperation, [Aspect.WRITE_OPERATION, Aspect.RETRYABLE]);
+defineAspects(FindAndModifyOperation, [
+  Aspect.WRITE_OPERATION,
+  Aspect.RETRYABLE,
+  Aspect.EXPLAINABLE
+]);

@@ -1,4 +1,9 @@
-import { CommandOperation, CommandOperationOptions, OperationParent } from './command';
+import {
+  CommandOperation,
+  CommandOperationOptions,
+  OperationParent,
+  CollationOptions
+} from './command';
 import { ReadPreference } from '../read_preference';
 import { MongoError } from '../error';
 import { maxWireVersion } from '../utils';
@@ -6,7 +11,7 @@ import { Aspect, defineAspects, Hint } from './operation';
 import type { Callback } from '../utils';
 import type { Document } from '../bson';
 import type { Server } from '../sdam/server';
-import type { CollationOptions } from '../cmap/wire_protocol/write_command';
+import type { ClientSession } from '../sessions';
 
 /** @internal */
 export const DB_AGGREGATE_COLLECTION = 1 as const;
@@ -22,8 +27,6 @@ export interface AggregateOptions extends CommandOperationOptions {
   bypassDocumentValidation?: boolean;
   /** Return the query as cursor, on 2.6 \> it returns as a real cursor on pre 2.6 it returns as an emulated cursor. */
   cursor?: Document;
-  /** Explain returns the aggregation execution plan (requires mongodb 2.6 \>) */
-  explain?: boolean;
   /** specifies a cumulative time limit in milliseconds for processing operations on the cursor. MongoDB interrupts the operation at the earliest following interrupt point. */
   maxTimeMS?: number;
   /** The maximum amount of time for the server to wait on new documents to satisfy a tailable cursor query. */
@@ -36,7 +39,8 @@ export interface AggregateOptions extends CommandOperationOptions {
 }
 
 /** @internal */
-export class AggregateOperation<T = Document> extends CommandOperation<AggregateOptions, T> {
+export class AggregateOperation<T = Document> extends CommandOperation<T> {
+  options: AggregateOptions;
   target: string | typeof DB_AGGREGATE_COLLECTION;
   pipeline: Document[];
   hasWriteStage: boolean;
@@ -44,6 +48,7 @@ export class AggregateOperation<T = Document> extends CommandOperation<Aggregate
   constructor(parent: OperationParent, pipeline: Document[], options?: AggregateOptions) {
     super(parent, options);
 
+    this.options = options ?? {};
     this.target =
       parent.s.namespace && parent.s.namespace.collection
         ? parent.s.namespace.collection
@@ -67,10 +72,8 @@ export class AggregateOperation<T = Document> extends CommandOperation<Aggregate
       this.readPreference = ReadPreference.primary;
     }
 
-    if (options?.explain && (this.readConcern || this.writeConcern)) {
-      throw new MongoError(
-        '"explain" cannot be used on an aggregate call with readConcern/writeConcern'
-      );
+    if (this.explain && this.writeConcern) {
+      throw new MongoError('"explain" cannot be used on an aggregate call with writeConcern');
     }
 
     if (options?.cursor != null && typeof options.cursor !== 'object') {
@@ -86,7 +89,7 @@ export class AggregateOperation<T = Document> extends CommandOperation<Aggregate
     this.pipeline.push(stage);
   }
 
-  execute(server: Server, callback: Callback<T>): void {
+  execute(server: Server, session: ClientSession, callback: Callback<T>): void {
     const options: AggregateOptions = this.options;
     const serverWireVersion = maxWireVersion(server);
     const command: Document = { aggregate: this.target, pipeline: this.pipeline };
@@ -113,17 +116,13 @@ export class AggregateOperation<T = Document> extends CommandOperation<Aggregate
       command.hint = options.hint;
     }
 
-    if (options.explain) {
-      command.explain = options.explain;
-    }
-
     command.cursor = options.cursor || {};
     if (options.batchSize && !this.hasWriteStage) {
       command.cursor.batchSize = options.batchSize;
     }
 
-    super.executeCommand(server, command, callback);
+    super.executeCommand(server, session, command, callback);
   }
 }
 
-defineAspects(AggregateOperation, [Aspect.READ_OPERATION, Aspect.RETRYABLE]);
+defineAspects(AggregateOperation, [Aspect.READ_OPERATION, Aspect.RETRYABLE, Aspect.EXPLAINABLE]);

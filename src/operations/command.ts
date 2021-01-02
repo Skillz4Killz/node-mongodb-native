@@ -1,26 +1,39 @@
-import { Aspect, OperationBase, OperationOptions } from './operation';
+import { Aspect, AbstractOperation, OperationOptions } from './operation';
 import { ReadConcern } from '../read_concern';
 import { WriteConcern, WriteConcernOptions } from '../write_concern';
-import { maxWireVersion, MongoDBNamespace, Callback } from '../utils';
-import { ReadPreference, ReadPreferenceLike } from '../read_preference';
-import { commandSupportsReadConcern } from '../sessions';
+import { maxWireVersion, MongoDBNamespace, Callback, decorateWithExplain } from '../utils';
+import type { ReadPreference } from '../read_preference';
+import { ClientSession, commandSupportsReadConcern } from '../sessions';
 import { MongoError } from '../error';
 import type { Logger } from '../logger';
 import type { Server } from '../sdam/server';
-import type { Document } from '../bson';
-import type { CollationOptions } from '../cmap/wire_protocol/write_command';
+import type { BSONSerializeOptions, Document } from '../bson';
 import type { ReadConcernLike } from './../read_concern';
+import { Explain, ExplainOptions } from '../explain';
 
 const SUPPORTS_WRITE_CONCERN_AND_COLLATION = 5;
 
 /** @public */
-export interface CommandOperationOptions extends OperationOptions, WriteConcernOptions {
+export interface CollationOptions {
+  locale: string;
+  caseLevel: boolean;
+  caseFirst: string;
+  strength: number;
+  numericOrdering: boolean;
+  alternate: string;
+  maxVariable: string;
+  backwards: boolean;
+}
+
+/** @public */
+export interface CommandOperationOptions
+  extends OperationOptions,
+    WriteConcernOptions,
+    ExplainOptions {
   /** Return the full server response for the command */
   fullResponse?: boolean;
   /** Specify a read concern and level for the collection. (only MongoDB 3.2 or higher supported) */
   readConcern?: ReadConcernLike;
-  /** The preferred read preference (ReadPreference.primary, ReadPreference.primary_preferred, ReadPreference.secondary, ReadPreference.secondary_preferred, ReadPreference.nearest). */
-  readPreference?: ReadPreferenceLike;
   /** Collation */
   collation?: CollationOptions;
   maxTimeMS?: number;
@@ -42,23 +55,22 @@ export interface OperationParent {
   writeConcern?: WriteConcern;
   readPreference?: ReadPreference;
   logger?: Logger;
+  bsonOptions?: BSONSerializeOptions;
 }
 
 /** @internal */
-export abstract class CommandOperation<
-  T extends CommandOperationOptions = CommandOperationOptions,
-  TResult = Document
-> extends OperationBase<T> {
+export abstract class CommandOperation<T> extends AbstractOperation<T> {
+  options: CommandOperationOptions;
   ns: MongoDBNamespace;
-  readPreference: ReadPreference;
   readConcern?: ReadConcern;
   writeConcern?: WriteConcern;
-  explain: boolean;
+  explain?: Explain;
   fullResponse?: boolean;
   logger?: Logger;
 
-  constructor(parent?: OperationParent, options?: T) {
+  constructor(parent?: OperationParent, options?: CommandOperationOptions) {
     super(options);
+    this.options = options ?? {};
 
     // NOTE: this was explicitly added for the add/remove user operations, it's likely
     //       something we'd want to reconsider. Perhaps those commands can use `Admin`
@@ -72,33 +84,43 @@ export abstract class CommandOperation<
         : new MongoDBNamespace('admin', '$cmd');
     }
 
-    const propertyProvider = this.hasAspect(Aspect.NO_INHERIT_OPTIONS) ? undefined : parent;
-    this.readPreference = this.hasAspect(Aspect.WRITE_OPERATION)
-      ? ReadPreference.primary
-      : ReadPreference.resolve(propertyProvider, this.options);
-    this.readConcern = resolveReadConcern(propertyProvider, this.options);
-    this.writeConcern = resolveWriteConcern(propertyProvider, this.options);
-    this.explain = false;
+    this.readConcern = ReadConcern.fromOptions(options);
+    this.writeConcern = WriteConcern.fromOptions(options);
     this.fullResponse =
       options && typeof options.fullResponse === 'boolean' ? options.fullResponse : false;
-
-    // TODO: A lot of our code depends on having the read preference in the options. This should
-    //       go away, but also requires massive test rewrites.
-    this.options.readPreference = this.readPreference;
 
     // TODO(NODE-2056): make logger another "inheritable" property
     if (parent && parent.logger) {
       this.logger = parent.logger;
     }
+
+    if (this.hasAspect(Aspect.EXPLAINABLE)) {
+      this.explain = Explain.fromOptions(options);
+    } else if (options?.explain !== undefined) {
+      throw new MongoError(`explain is not supported on this command`);
+    }
   }
 
-  abstract execute(server: Server, callback: Callback<TResult>): void;
+  get canRetryWrite(): boolean {
+    if (this.hasAspect(Aspect.EXPLAINABLE)) {
+      return this.explain === undefined;
+    }
+    return true;
+  }
 
-  executeCommand(server: Server, cmd: Document, callback: Callback): void {
+  abstract execute(server: Server, session: ClientSession, callback: Callback<T>): void;
+
+  executeCommand(server: Server, session: ClientSession, cmd: Document, callback: Callback): void {
     // TODO: consider making this a non-enumerable property
     this.server = server;
 
-    const options = this.options;
+    const options = {
+      ...this.options,
+      ...this.bsonOptions,
+      readPreference: this.readPreference,
+      session
+    };
+
     const serverWireVersion = maxWireVersion(server);
     const inTransaction = this.session && this.session.inTransaction();
 
@@ -115,12 +137,16 @@ export abstract class CommandOperation<
       return;
     }
 
-    if (serverWireVersion >= SUPPORTS_WRITE_CONCERN_AND_COLLATION) {
-      if (this.writeConcern && this.hasAspect(Aspect.WRITE_OPERATION) && !inTransaction) {
-        Object.assign(cmd, { writeConcern: this.writeConcern });
-      }
+    if (this.writeConcern && this.hasAspect(Aspect.WRITE_OPERATION) && !inTransaction) {
+      Object.assign(cmd, { writeConcern: this.writeConcern });
+    }
 
-      if (options.collation && typeof options.collation === 'object') {
+    if (serverWireVersion >= SUPPORTS_WRITE_CONCERN_AND_COLLATION) {
+      if (
+        options.collation &&
+        typeof options.collation === 'object' &&
+        !this.hasAspect(Aspect.SKIP_COLLATION)
+      ) {
         Object.assign(cmd, { collation: options.collation });
       }
     }
@@ -137,19 +163,15 @@ export abstract class CommandOperation<
       this.logger.debug(`executing command ${JSON.stringify(cmd)} against ${this.ns}`);
     }
 
-    server.command(
-      this.ns.toString(),
-      cmd,
-      { fullResult: !!this.fullResponse, ...this.options },
-      callback
-    );
+    if (this.hasAspect(Aspect.EXPLAINABLE) && this.explain) {
+      if (serverWireVersion < 6 && cmd.aggregate) {
+        // Prior to 3.6, with aggregate, verbosity is ignored, and we must pass in "explain: true"
+        cmd.explain = true;
+      } else {
+        cmd = decorateWithExplain(cmd, this.explain);
+      }
+    }
+
+    server.command(this.ns, cmd, { fullResult: !!this.fullResponse, ...options }, callback);
   }
-}
-
-function resolveWriteConcern(parent: OperationParent | undefined, options: any) {
-  return WriteConcern.fromOptions(options) || parent?.writeConcern;
-}
-
-function resolveReadConcern(parent: OperationParent | undefined, options: any) {
-  return ReadConcern.fromOptions(options) || parent?.readConcern;
 }

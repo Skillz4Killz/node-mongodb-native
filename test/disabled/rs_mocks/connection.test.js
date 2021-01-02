@@ -114,7 +114,7 @@ describe('ReplSet Connection Tests (mocks)', function () {
             setName: 'rs',
             connectionTimeout: 3000,
             socketTimeout: 0,
-            haInterval: 100,
+
             size: 1
           }
         );
@@ -231,7 +231,7 @@ describe('ReplSet Connection Tests (mocks)', function () {
             setName: 'rs',
             connectionTimeout: 3000,
             socketTimeout: 0,
-            haInterval: 100,
+
             size: 1
           });
 
@@ -267,7 +267,8 @@ describe('ReplSet Connection Tests (mocks)', function () {
     metadata: {
       requires: {
         generators: true,
-        topology: 'single'
+        topology: 'single',
+        os: '!win32' // NODE-2943: timeout on windows
       }
     },
 
@@ -333,7 +334,7 @@ describe('ReplSet Connection Tests (mocks)', function () {
             setName: 'rs',
             connectionTimeout: 3000,
             socketTimeout: 0,
-            haInterval: 100,
+
             size: 1
           }
         );
@@ -375,7 +376,8 @@ describe('ReplSet Connection Tests (mocks)', function () {
     metadata: {
       requires: {
         generators: true,
-        topology: 'single'
+        topology: 'single',
+        os: '!win32' // NODE-2943: timeout on windows
       }
     },
 
@@ -422,7 +424,7 @@ describe('ReplSet Connection Tests (mocks)', function () {
             setName: 'rs',
             connectionTimeout: 3000,
             socketTimeout: 0,
-            haInterval: 100,
+
             size: 1
           }
         );
@@ -509,7 +511,7 @@ describe('ReplSet Connection Tests (mocks)', function () {
               setName: 'rs',
               connectionTimeout: 3000,
               socketTimeout: 0,
-              haInterval: 100,
+
               size: 1,
               secondaryOnlyConnectionAllowed: true
             }
@@ -630,7 +632,7 @@ describe('ReplSet Connection Tests (mocks)', function () {
               setName: 'rs',
               connectionTimeout: 3000,
               socketTimeout: 0,
-              haInterval: 100,
+
               size: 1,
               secondaryOnlyConnectionAllowed: true
             }
@@ -753,7 +755,7 @@ describe('ReplSet Connection Tests (mocks)', function () {
             setName: 'rs',
             connectionTimeout: 3000,
             socketTimeout: 2000,
-            haInterval: 5000,
+
             size: 1
           }
         );
@@ -840,7 +842,7 @@ describe('ReplSet Connection Tests (mocks)', function () {
             setName: 'rs',
             connectionTimeout: 5000,
             socketTimeout: 10000,
-            haInterval: 100,
+
             size: 1
           }
         );
@@ -958,7 +960,7 @@ describe('ReplSet Connection Tests (mocks)', function () {
               setName: 'rs',
               connectionTimeout: 3000,
               socketTimeout: 0,
-              haInterval: 100,
+
               size: 1
             }
           );
@@ -1053,7 +1055,7 @@ describe('ReplSet Connection Tests (mocks)', function () {
           setName: 'rs',
           connectionTimeout: 3000,
           socketTimeout: 0,
-          haInterval: 100,
+
           size: 1
         });
 
@@ -1166,7 +1168,7 @@ describe('ReplSet Connection Tests (mocks)', function () {
             setName: 'rs',
             connectionTimeout: 3000,
             socketTimeout: 0,
-            haInterval: 100,
+
             size: 1
           });
 
@@ -1264,7 +1266,7 @@ describe('ReplSet Connection Tests (mocks)', function () {
               setName: 'rs',
               connectionTimeout: 3000,
               socketTimeout: 0,
-              haInterval: 100,
+
               size: 1,
               secondaryOnlyConnectionAllowed: true
             }

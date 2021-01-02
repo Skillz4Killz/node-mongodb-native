@@ -11,7 +11,7 @@ import {
 } from './operations/list_databases';
 import { executeOperation } from './operations/execute_operation';
 import { RunCommandOperation, RunCommandOptions } from './operations/run_command';
-import type { Callback } from './utils';
+import { Callback, getTopology } from './utils';
 import type { Document } from './bson';
 import type { CommandOperationOptions } from './operations/command';
 import type { Db } from './db';
@@ -55,7 +55,10 @@ export class Admin {
   /** @internal */
   s: AdminPrivate;
 
-  /** @internal Create a new Admin instance (INTERNAL TYPE, do not instantiate directly) */
+  /**
+   * Create a new Admin instance
+   * @internal
+   */
   constructor(db: Db) {
     this.s = { db };
   }
@@ -80,7 +83,7 @@ export class Admin {
     options = Object.assign({ dbName: 'admin' }, options);
 
     return executeOperation(
-      this.s.db.s.topology,
+      getTopology(this.s.db),
       new RunCommandOperation(this.s.db, command, options),
       callback
     );
@@ -101,7 +104,7 @@ export class Admin {
     callback?: Callback<Document>
   ): Promise<Document> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
+    options = options ?? {};
     return this.command({ buildinfo: 1 }, options, callback as Callback<Document>);
   }
 
@@ -120,7 +123,7 @@ export class Admin {
     callback?: Callback<Document>
   ): Promise<Document> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
+    options = options ?? {};
     return this.command({ buildinfo: 1 }, options, callback as Callback<Document>);
   }
 
@@ -139,7 +142,7 @@ export class Admin {
     callback?: Callback<Document>
   ): Promise<Document> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
+    options = options ?? {};
     return this.command({ serverStatus: 1 }, options, callback as Callback<Document>);
   }
 
@@ -158,7 +161,7 @@ export class Admin {
     callback?: Callback<Document>
   ): Promise<Document> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
+    options = options ?? {};
     return this.command({ ping: 1 }, options, callback as Callback<Document>);
   }
 
@@ -204,7 +207,7 @@ export class Admin {
     options = Object.assign({ dbName: 'admin' }, options);
 
     return executeOperation(
-      this.s.db.s.topology,
+      getTopology(this.s.db),
       new AddUserOperation(this.s.db, username, password, options),
       callback
     );
@@ -230,7 +233,7 @@ export class Admin {
     options = Object.assign({ dbName: 'admin' }, options);
 
     return executeOperation(
-      this.s.db.s.topology,
+      getTopology(this.s.db),
       new RemoveUserOperation(this.s.db, username, options),
       callback
     );
@@ -257,10 +260,10 @@ export class Admin {
     callback?: Callback<Document>
   ): Promise<Document> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
+    options = options ?? {};
 
     return executeOperation(
-      this.s.db.s.topology,
+      getTopology(this.s.db),
       new ValidateCollectionOperation(this, collectionName, options),
       callback
     );
@@ -281,10 +284,10 @@ export class Admin {
     callback?: Callback<ListDatabasesResult>
   ): Promise<ListDatabasesResult> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
+    options = options ?? {};
 
     return executeOperation(
-      this.s.db.s.topology,
+      getTopology(this.s.db),
       new ListDatabasesOperation(this.s.db, options),
       callback
     );
@@ -305,7 +308,7 @@ export class Admin {
     callback?: Callback<Document>
   ): Promise<Document> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
+    options = options ?? {};
     return this.command({ replSetGetStatus: 1 }, options, callback as Callback<Document>);
   }
 }

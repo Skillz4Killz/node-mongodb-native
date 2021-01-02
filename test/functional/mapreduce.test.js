@@ -9,62 +9,6 @@ describe('MapReduce', function () {
     return setupDatabase(this.configuration, ['outputCollectionDb']);
   });
 
-  it('shouldCorrectlyExecuteGroupFunctionWithFinalizeFunction', {
-    metadata: {
-      requires: {
-        mongodb: '<=4.1.0',
-        topology: ['single', 'replicaset', 'sharded', 'ssl', 'heap', 'wiredtiger']
-      }
-    },
-
-    test: function (done) {
-      var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
-      client.connect(function (err, client) {
-        var db = client.db(configuration.db);
-        db.createCollection('test_group2', function (err, collection) {
-          collection.group(
-            [],
-            {},
-            { count: 0 },
-            'function (obj, prev) { prev.count++; }',
-            true,
-            function (err, results) {
-              test.deepEqual([], results);
-
-              // Trigger some inserts
-              collection.insert(
-                [{ a: 2 }, { b: 5, a: 0 }, { a: 1 }, { c: 2, a: 0 }],
-                configuration.writeConcernMax(),
-                function (err) {
-                  expect(err).to.not.exist;
-                  collection.group(
-                    [],
-                    {},
-                    { count: 0, running_average: 0 },
-                    function (doc, out) {
-                      out.count++;
-                      out.running_average += doc.a;
-                    },
-                    function (out) {
-                      out.average = out.running_average / out.count;
-                    },
-                    true,
-                    function (err, results) {
-                      test.equal(3, results[0].running_average);
-                      test.equal(0.75, results[0].average);
-                      client.close(done);
-                    }
-                  );
-                }
-              );
-            }
-          );
-        });
-      });
-    }
-  });
-
   /**
    * Mapreduce tests
    */
@@ -75,7 +19,7 @@ describe('MapReduce', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('test_map_reduce', function (err, collection) {
@@ -124,7 +68,7 @@ describe('MapReduce', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         expect(err).to.not.exist;
         var db = client.db(configuration.db);
@@ -156,7 +100,7 @@ describe('MapReduce', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('test_map_reduce_with_functions_as_arguments', function (
@@ -205,7 +149,7 @@ describe('MapReduce', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('test_map_reduce_with_code_objects', function (err, collection) {
@@ -245,7 +189,7 @@ describe('MapReduce', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('test_map_reduce_with_options', function (err, collection) {
@@ -291,7 +235,7 @@ describe('MapReduce', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('test_map_reduce_error', function (err, collection) {
@@ -330,7 +274,7 @@ describe('MapReduce', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         const outDb = client.db('outputCollectionDb');
@@ -386,68 +330,6 @@ describe('MapReduce', function () {
     }
   });
 
-  it('shouldCorrectlyReturnNestedKeys', {
-    metadata: {
-      requires: {
-        mongodb: '<=4.1.0', // Because of use of `group` command
-        topology: ['single', 'replicaset', 'sharded', 'ssl', 'heap', 'wiredtiger']
-      }
-    },
-
-    test: function (done) {
-      var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
-      client.connect(function (err, client) {
-        var db = client.db(configuration.db);
-        var start = new Date().setTime(new Date().getTime() - 10000);
-        var end = new Date().setTime(new Date().getTime() + 10000);
-
-        var keys = {
-          'data.lastname': true
-        };
-
-        var condition = {
-          'data.date': {
-            $gte: start,
-            $lte: end
-          }
-        };
-
-        condition = {};
-
-        var initial = {
-          count: 0
-        };
-
-        var reduce = function (doc, output) {
-          output.count++;
-        };
-
-        // Execute the group
-        db.createCollection('data', function (err, collection) {
-          collection.insert(
-            {
-              data: {
-                lastname: 'smith',
-                date: new Date()
-              }
-            },
-            configuration.writeConcernMax(),
-            function (err) {
-              expect(err).to.not.exist;
-              // Execute the group
-              collection.group(keys, condition, initial, reduce, true, function (err, r) {
-                test.equal(1, r[0].count);
-                test.equal('smith', r[0]['data.lastname']);
-                client.close(done);
-              });
-            }
-          );
-        });
-      });
-    }
-  });
-
   /**
    * Mapreduce tests
    */
@@ -464,7 +346,7 @@ describe('MapReduce', function () {
       };
 
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('test_map_reduce', function (err, collection) {

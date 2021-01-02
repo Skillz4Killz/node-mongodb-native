@@ -2,23 +2,27 @@ import * as os from 'os';
 import * as crypto from 'crypto';
 import { PromiseProvider } from './promise_provider';
 import { MongoError, AnyError } from './error';
-import { WriteConcern, WriteConcernOptions, W, writeConcernKeys } from './write_concern';
+import { WriteConcern, WriteConcernOptions, W } from './write_concern';
 import type { Server } from './sdam/server';
 import type { Topology } from './sdam/topology';
 import type { EventEmitter } from 'events';
 import type { Db } from './db';
 import type { Collection } from './collection';
-import type { OperationOptions, OperationBase, Hint } from './operations/operation';
+import type { OperationOptions, Hint } from './operations/operation';
 import type { ClientSession } from './sessions';
-import type { ReadConcern } from './read_concern';
+import { ReadConcern } from './read_concern';
 import type { Connection } from './cmap/connection';
-import type { SortDirection, Sort } from './operations/find';
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
-import type { Document } from './bson';
+import { Document, resolveBSONOptions } from './bson';
 import type { IndexSpecification, IndexDirection } from './operations/indexes';
+import type { Explain } from './explain';
+import type { MongoClient } from './mongo_client';
+import type { CommandOperationOptions, OperationParent } from './operations/command';
+import { ReadPreference } from './read_preference';
 
-/** @public MongoDB Driver style callback */
+/**
+ * MongoDB Driver style callback
+ * @public
+ */
 export type Callback<T = any> = (error?: AnyError, result?: T) => void;
 /** @public */
 export type CallbackWithType<E = AnyError, T0 = any> = (error?: E, result?: T0) => void;
@@ -42,64 +46,6 @@ export function getSingleProperty(
       return value;
     }
   });
-}
-
-/**
- * Translate the variety of sort specifiers into 1 or -1
- * @internal
- */
-export function formatSortValue(sortDirection: SortDirection): -1 | 1 {
-  const value = ('' + sortDirection).toLowerCase();
-
-  switch (value) {
-    case 'ascending':
-    case 'asc':
-    case '1':
-      return 1;
-    case 'descending':
-    case 'desc':
-    case '-1':
-      return -1;
-    default:
-      throw new Error(
-        'Illegal sort clause, must be of the form ' +
-          "[['field1', '(ascending|descending)'], " +
-          "['field2', '(ascending|descending)']]"
-      );
-  }
-}
-
-/**
- * Ensure the sort specifier is in a shape we expect, and maps keys to 1 or -1.
- * @internal
- */
-export function formattedOrderClause(sortValue?: unknown): Sort | null {
-  let orderBy: any = {};
-  if (sortValue == null) return null;
-  if (Array.isArray(sortValue)) {
-    if (sortValue.length === 0) {
-      return null;
-    }
-
-    for (let i = 0; i < sortValue.length; i++) {
-      if (sortValue[i].constructor === String) {
-        orderBy[sortValue[i]] = 1;
-      } else {
-        orderBy[sortValue[i][0]] = formatSortValue(sortValue[i][1]);
-      }
-    }
-  } else if (sortValue != null && typeof sortValue === 'object') {
-    orderBy = sortValue;
-  } else if (typeof sortValue === 'string') {
-    orderBy[sortValue] = 1;
-  } else {
-    throw new Error(
-      'Illegal sort clause, must be of the form ' +
-        "[['field1', '(ascending|descending)'], ['field2', '(ascending|descending)']]"
-    );
-  }
-
-  return orderBy;
 }
 
 /**
@@ -267,43 +213,6 @@ export function filterOptions(options: AnyOptions, names: string[]): AnyOptions 
   return filterOptions;
 }
 
-/** @internal */
-export function mergeOptionsAndWriteConcern(
-  targetOptions: AnyOptions,
-  sourceOptions: AnyOptions,
-  keys: string[],
-  mergeWriteConcern: boolean
-): AnyOptions {
-  // Mix in any allowed options
-  for (let i = 0; i < keys.length; i++) {
-    if (!targetOptions[keys[i]] && sourceOptions[keys[i]] !== undefined) {
-      targetOptions[keys[i]] = sourceOptions[keys[i]];
-    }
-  }
-
-  // No merging of write concern
-  if (!mergeWriteConcern) return targetOptions;
-
-  // Found no write Concern options
-  let found = false;
-  for (let i = 0; i < writeConcernKeys.length; i++) {
-    if (targetOptions[writeConcernKeys[i]]) {
-      found = true;
-      break;
-    }
-  }
-
-  if (!found) {
-    for (let i = 0; i < writeConcernKeys.length; i++) {
-      if (sourceOptions[writeConcernKeys[i]]) {
-        targetOptions[writeConcernKeys[i]] = sourceOptions[writeConcernKeys[i]];
-      }
-    }
-  }
-
-  return targetOptions;
-}
-
 /**
  * Executes the given operation with provided arguments.
  *
@@ -321,7 +230,7 @@ export function mergeOptionsAndWriteConcern(
  * @param args - Arguments to apply the provided operation
  * @param options - Options that modify the behavior of the method
  */
-export function executeLegacyOperation<T extends OperationBase>(
+export function executeLegacyOperation<T>(
   topology: Topology,
   operation: (...args: any[]) => void | Promise<Document>,
   args: any[],
@@ -329,15 +238,11 @@ export function executeLegacyOperation<T extends OperationBase>(
 ): void | Promise<any> {
   const Promise = PromiseProvider.get();
 
-  if (topology == null) {
-    throw new TypeError('This method requires a valid topology instance');
-  }
-
   if (!Array.isArray(args)) {
     throw new TypeError('This method requires an array of arguments to apply');
   }
 
-  options = options || {};
+  options = options ?? {};
 
   let callback = args[args.length - 1];
 
@@ -445,7 +350,7 @@ export function applyWriteConcern<T extends HasWriteConcern>(
   sources: { db?: Db; collection?: Collection },
   options?: OperationOptions & WriteConcernOptions
 ): T {
-  options = options || {};
+  options = options ?? {};
   const db = sources.db;
   const coll = sources.collection;
 
@@ -497,17 +402,10 @@ export function isPromiseLike<T = any>(
  */
 export function decorateWithCollation(
   command: Document,
-  target: { s: { topology: Topology } } | { topology: Topology },
+  target: MongoClient | Db | Collection,
   options: AnyOptions
 ): void {
-  const topology =
-    ('s' in target && target.s.topology) || ('topology' in target && target.topology);
-
-  if (!topology) {
-    throw new TypeError('parameter "target" is missing a topology');
-  }
-
-  const capabilities = topology.capabilities();
+  const capabilities = getTopology(target).capabilities();
   if (options.collation && typeof options.collation === 'object') {
     if (capabilities && capabilities.commandsTakeCollation) {
       command.collation = options.collation;
@@ -540,6 +438,38 @@ export function decorateWithReadConcern(
   if (Object.keys(readConcern).length > 0) {
     Object.assign(command, { readConcern: readConcern });
   }
+}
+
+/**
+ * Applies an explain to a given command.
+ * @internal
+ *
+ * @param command - the command on which to apply the explain
+ * @param options - the options containing the explain verbosity
+ */
+export function decorateWithExplain(command: Document, explain: Explain): Document {
+  if (command.explain) {
+    return command;
+  }
+
+  return { explain: command, verbosity: explain.verbosity };
+}
+
+/**
+ * A helper function to get the topology from a given provider. Throws
+ * if the topology cannot be found.
+ * @internal
+ */
+export function getTopology(provider: MongoClient | Db | Collection): Topology {
+  if (`topology` in provider && provider.topology) {
+    return provider.topology;
+  } else if ('client' in provider.s && provider.s.client.topology) {
+    return provider.s.client.topology;
+  } else if ('db' in provider.s && provider.s.db.s.client.topology) {
+    return provider.s.db.s.client.topology;
+  }
+
+  throw new MongoError('MongoClient must be connected to perform this operation');
 }
 
 /** @internal */
@@ -628,6 +558,11 @@ export function deprecateOptions(
   }
 
   return deprecated;
+}
+
+/** @internal */
+export function ns(ns: string): MongoDBNamespace {
+  return MongoDBNamespace.fromString(ns);
 }
 
 /** @public */
@@ -727,7 +662,10 @@ export function collectionNamespace(ns: string): string {
   return ns.split('.').slice(1).join('.');
 }
 
-/** @internal Synchronously Generate a UUIDv4 */
+/**
+ * Synchronously Generate a UUIDv4
+ * @internal
+ */
 export function uuidV4(): Buffer {
   const result = crypto.randomBytes(16);
   result[6] = (result[6] & 0x0f) | 0x40;
@@ -950,12 +888,11 @@ export interface ClientMetadataOptions {
   appname?: string;
 }
 
-const NODE_DRIVER_VERSION = JSON.parse(
-  readFileSync(resolve(__dirname, '..', 'package.json'), { encoding: 'utf-8' })
-).version;
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const NODE_DRIVER_VERSION = require('../package.json').version;
 
 export function makeClientMetadata(options: ClientMetadataOptions): ClientMetadata {
-  options = options || {};
+  options = options ?? {};
 
   const metadata: ClientMetadata = {
     driver: {
@@ -1029,7 +966,7 @@ export function calculateDurationInMs(started: number): number {
   return elapsed < 0 ? 0 : elapsed;
 }
 
-export interface InterruptableAsyncIntervalOptions {
+export interface InterruptibleAsyncIntervalOptions {
   /** The interval to execute a method on */
   interval: number;
   /** A minimum interval that must elapse before the method is called */
@@ -1037,12 +974,15 @@ export interface InterruptableAsyncIntervalOptions {
   /** Whether the method should be called immediately when the interval is started  */
   immediate: boolean;
 
-  /* @internal only used for testing unreliable timer environments */
+  /**
+   * Only used for testing unreliable timer environments
+   * @internal
+   */
   clock: () => number;
 }
 
 /** @internal */
-export interface InterruptableAsyncInterval {
+export interface InterruptibleAsyncInterval {
   wake(): void;
   stop(): void;
 }
@@ -1056,16 +996,16 @@ export interface InterruptableAsyncInterval {
  *
  * @param fn - An async function to run on an interval, must accept a `callback` as its only parameter
  */
-export function makeInterruptableAsyncInterval(
+export function makeInterruptibleAsyncInterval(
   fn: (callback: Callback) => void,
-  options?: Partial<InterruptableAsyncIntervalOptions>
-): InterruptableAsyncInterval {
+  options?: Partial<InterruptibleAsyncIntervalOptions>
+): InterruptibleAsyncInterval {
   let timerId: NodeJS.Timeout | undefined;
   let lastCallTime: number;
   let lastWakeTime: number;
   let stopped = false;
 
-  options = options || {};
+  options = options ?? {};
   const interval = options.interval || 1000;
   const minInterval = options.minInterval || 500;
   const immediate = typeof options.immediate === 'boolean' ? options.immediate : false;
@@ -1157,4 +1097,218 @@ export function hasAtomicOperators(doc: Document | Document[]): boolean {
 
   const keys = Object.keys(doc);
   return keys.length > 0 && keys[0][0] === '$';
+}
+
+/**
+ * Merge inherited properties from parent into options, prioritizing values from options,
+ * then values from parent.
+ * @internal
+ */
+export function resolveOptions<T extends CommandOperationOptions>(
+  parent: OperationParent | undefined,
+  options?: T
+): T {
+  const result: T = Object.assign({}, options, resolveBSONOptions(options, parent));
+
+  // Users cannot pass a readConcern/writeConcern to operations in a transaction
+  const session = options?.session;
+  if (!session?.inTransaction()) {
+    const readConcern = ReadConcern.fromOptions(options) ?? parent?.readConcern;
+    if (readConcern) {
+      result.readConcern = readConcern;
+    }
+
+    const writeConcern = WriteConcern.fromOptions(options) ?? parent?.writeConcern;
+    if (writeConcern) {
+      result.writeConcern = writeConcern;
+    }
+  }
+
+  const readPreference = ReadPreference.fromOptions(options) ?? parent?.readPreference;
+  if (readPreference) {
+    result.readPreference = readPreference;
+  }
+
+  return result;
+}
+
+export function isSuperset(set: Set<any> | any[], subset: Set<any> | any[]): boolean {
+  set = Array.isArray(set) ? new Set(set) : set;
+  subset = Array.isArray(subset) ? new Set(subset) : subset;
+  for (const elem of subset) {
+    if (!set.has(elem)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function isRecord<T extends readonly string[]>(
+  value: unknown,
+  requiredKeys: T
+): value is Record<T[number], any>;
+export function isRecord(value: unknown): value is Record<string, any>;
+export function isRecord(
+  value: unknown,
+  requiredKeys: string[] | undefined = undefined
+): value is Record<string, any> {
+  const toString = Object.prototype.toString;
+  const hasOwnProperty = Object.prototype.hasOwnProperty;
+  const isObject = (v: unknown) => toString.call(v) === '[object Object]';
+  if (!isObject(value)) {
+    return false;
+  }
+
+  const ctor = (value as any).constructor;
+  if (ctor && ctor.prototype) {
+    if (!isObject(ctor.prototype)) {
+      return false;
+    }
+
+    // Check to see if some method exists from the Object exists
+    if (!hasOwnProperty.call(ctor.prototype, 'isPrototypeOf')) {
+      return false;
+    }
+  }
+
+  if (requiredKeys) {
+    const keys = Object.keys(value as Record<string, any>);
+    return isSuperset(keys, requiredKeys);
+  }
+
+  return true;
+}
+
+/**
+ * Make a deep copy of an object
+ *
+ * NOTE: This is not meant to be the perfect implementation of a deep copy,
+ * but instead something that is good enough for the purposes of
+ * command monitoring.
+ */
+export function deepCopy<T extends any>(value: T): T {
+  if (value == null) {
+    return value;
+  } else if (Array.isArray(value)) {
+    return value.map(item => deepCopy(item)) as T;
+  } else if (isRecord(value)) {
+    const res = {} as any;
+    for (const key in value) {
+      res[key] = deepCopy(value[key]);
+    }
+    return res;
+  }
+
+  const ctor = (value as any).constructor;
+  if (ctor) {
+    switch (ctor.name.toLowerCase()) {
+      case 'date':
+        return new ctor(Number(value));
+      case 'map':
+        return new Map(value as any) as T;
+      case 'set':
+        return new Set(value as any) as T;
+      case 'buffer':
+        return Buffer.from(value as Buffer) as T;
+    }
+  }
+
+  return value;
+}
+
+const kBuffers = Symbol('buffers');
+const kLength = Symbol('length');
+
+/**
+ * A pool of Buffers which allow you to read them as if they were one
+ * @internal
+ */
+export class BufferPool {
+  [kBuffers]: Buffer[];
+  [kLength]: number;
+
+  constructor() {
+    this[kBuffers] = [];
+    this[kLength] = 0;
+  }
+
+  get length(): number {
+    return this[kLength];
+  }
+
+  /** Adds a buffer to the internal buffer pool list */
+  append(buffer: Buffer): void {
+    this[kBuffers].push(buffer);
+    this[kLength] += buffer.length;
+  }
+
+  /** Returns the requested number of bytes without consuming them */
+  peek(size: number): Buffer {
+    return this.read(size, false);
+  }
+
+  /** Reads the requested number of bytes, optionally consuming them */
+  read(size: number, consume = true): Buffer {
+    if (typeof size !== 'number' || size < 0) {
+      throw new TypeError('Parameter size must be a non-negative number');
+    }
+
+    if (size > this[kLength]) {
+      return Buffer.alloc(0);
+    }
+
+    let result: Buffer;
+
+    // read the whole buffer
+    if (size === this.length) {
+      result = Buffer.concat(this[kBuffers]);
+
+      if (consume) {
+        this[kBuffers] = [];
+        this[kLength] = 0;
+      }
+    }
+
+    // size is within first buffer, no need to concat
+    else if (size <= this[kBuffers][0].length) {
+      result = this[kBuffers][0].slice(0, size);
+      if (consume) {
+        this[kBuffers][0] = this[kBuffers][0].slice(size);
+        this[kLength] -= size;
+      }
+    }
+
+    // size is beyond first buffer, need to track and copy
+    else {
+      result = Buffer.allocUnsafe(size);
+
+      let idx;
+      let offset = 0;
+      let bytesToCopy = size;
+      for (idx = 0; idx < this[kBuffers].length; ++idx) {
+        let bytesCopied;
+        if (bytesToCopy > this[kBuffers][idx].length) {
+          bytesCopied = this[kBuffers][idx].copy(result, offset, 0);
+          offset += bytesCopied;
+        } else {
+          bytesCopied = this[kBuffers][idx].copy(result, offset, 0, bytesToCopy);
+          if (consume) {
+            this[kBuffers][idx] = this[kBuffers][idx].slice(bytesCopied);
+          }
+          offset += bytesCopied;
+          break;
+        }
+
+        bytesToCopy -= bytesCopied;
+      }
+
+      // compact the internal buffer array
+      if (consume) {
+        this[kBuffers] = this[kBuffers].slice(idx);
+        this[kLength] -= size;
+      }
+    }
+
+    return result;
+  }
 }

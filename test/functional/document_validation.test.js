@@ -20,7 +20,7 @@ describe('Document Validation', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         expect(err).to.not.exist;
@@ -77,7 +77,7 @@ describe('Document Validation', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         expect(err).to.not.exist;
@@ -96,7 +96,7 @@ describe('Document Validation', function () {
 
               // Should fail
               col.update({ b: 1 }, { $set: { b: 1 } }, { upsert: true }, function (err) {
-                test.ok(err != null);
+                expect(err).to.exist;
 
                 // Ensure validation was correctly applied
                 col.update(
@@ -159,7 +159,7 @@ describe('Document Validation', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         expect(err).to.not.exist;
@@ -209,7 +209,7 @@ describe('Document Validation', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         expect(err).to.not.exist;
@@ -271,7 +271,7 @@ describe('Document Validation', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         // Some docs for insertion
@@ -303,36 +303,40 @@ describe('Document Validation', function () {
               expect(err).to.not.exist;
 
               // Insert the docs
-              col.insertMany(docs, { w: 1, bypassDocumentValidation: true }, function (err) {
-                expect(err).to.not.exist;
-
-                // Execute aggregate, notice the pipeline is expressed as an Array
-                const cursor = col.aggregate(
-                  [
-                    {
-                      $project: {
-                        author: 1,
-                        tags: 1
-                      }
-                    },
-                    { $unwind: '$tags' },
-                    {
-                      $group: {
-                        _id: { tags: '$tags' },
-                        authors: { $addToSet: '$author' }
-                      }
-                    },
-                    { $out: 'createValidationCollectionOut' }
-                  ],
-                  { bypassDocumentValidation: true }
-                );
-
-                cursor.toArray(function (err) {
+              col.insertMany(
+                docs,
+                { writeConcern: { w: 1 }, bypassDocumentValidation: true },
+                function (err) {
                   expect(err).to.not.exist;
 
-                  client.close(done);
-                });
-              });
+                  // Execute aggregate, notice the pipeline is expressed as an Array
+                  const cursor = col.aggregate(
+                    [
+                      {
+                        $project: {
+                          author: 1,
+                          tags: 1
+                        }
+                      },
+                      { $unwind: '$tags' },
+                      {
+                        $group: {
+                          _id: { tags: '$tags' },
+                          authors: { $addToSet: '$author' }
+                        }
+                      },
+                      { $out: 'createValidationCollectionOut' }
+                    ],
+                    { bypassDocumentValidation: true }
+                  );
+
+                  cursor.toArray(function (err) {
+                    expect(err).to.not.exist;
+
+                    client.close(done);
+                  });
+                }
+              );
             }
           );
         });
@@ -352,7 +356,7 @@ describe('Document Validation', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
 

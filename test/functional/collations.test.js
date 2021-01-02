@@ -107,7 +107,7 @@ describe('Collation', function () {
           request.reply(primary[0]);
         } else if (doc.aggregate) {
           commandResult = doc;
-          request.reply({ ok: 1 });
+          request.reply({ ok: 1, cursor: { id: 0, firstBatch: [], ns: configuration.db } });
         } else if (doc.endSessions) {
           request.reply({ ok: 1 });
         }
@@ -157,50 +157,6 @@ describe('Collation', function () {
         return db
           .collection('test')
           .distinct('a', {}, { collation: { caseLevel: true } })
-          .then(() => {
-            expect(commandResult).to.have.property('collation');
-            expect(commandResult.collation).to.eql({ caseLevel: true });
-            return client.close();
-          });
-      });
-    }
-  });
-
-  it('Successfully pass through collation to group command', {
-    metadata: { requires: { generators: true, topology: 'single', mongodb: '<=4.1.0' } },
-
-    test: function () {
-      const configuration = this.configuration;
-      const client = configuration.newClient(`mongodb://${testContext.server.uri()}/test`);
-      const primary = [Object.assign({}, mock.DEFAULT_ISMASTER)];
-
-      let commandResult;
-      testContext.server.setMessageHandler(request => {
-        var doc = request.document;
-        if (doc.ismaster) {
-          request.reply(primary[0]);
-        } else if (doc.group) {
-          commandResult = doc;
-          request.reply({ ok: 1 });
-        } else if (doc.endSessions) {
-          request.reply({ ok: 1 });
-        }
-      });
-
-      return client.connect().then(() => {
-        const db = client.db(configuration.db);
-
-        return db
-          .collection('test')
-          .group(
-            [],
-            { a: { $gt: 1 } },
-            { count: 0 },
-            'function (obj, prev) { prev.count++; }',
-            'function (obj, prev) { prev.count++; }',
-            true,
-            { collation: { caseLevel: true } }
-          )
           .then(() => {
             expect(commandResult).to.have.property('collation');
             expect(commandResult.collation).to.eql({ caseLevel: true });
@@ -340,7 +296,7 @@ describe('Collation', function () {
           request.reply(primary[0]);
         } else if (doc.find) {
           commandResult = doc;
-          request.reply({ ok: 1 });
+          request.reply({ ok: 1, cursor: { id: 0, firstBatch: [] } });
         } else if (doc.endSessions) {
           request.reply({ ok: 1 });
         }
@@ -376,7 +332,7 @@ describe('Collation', function () {
           request.reply(primary[0]);
         } else if (doc.find) {
           commandResult = doc;
-          request.reply({ ok: 1 });
+          request.reply({ ok: 1, cursor: { id: 0, firstBatch: [] } });
         } else if (doc.endSessions) {
           request.reply({ ok: 1 });
         }
@@ -414,7 +370,7 @@ describe('Collation', function () {
           request.reply(primary[0]);
         } else if (doc.find) {
           commandResult = doc;
-          request.reply({ ok: 1 });
+          request.reply({ ok: 1, cursor: { id: 0, firstBatch: [] } });
         } else if (doc.endSessions) {
           request.reply({ ok: 1 });
         }
@@ -580,13 +536,13 @@ describe('Collation', function () {
             [
               {
                 updateOne: {
-                  q: { a: 2 },
-                  u: { $set: { a: 2 } },
+                  filter: { a: 2 },
+                  update: { $set: { a: 2 } },
                   upsert: true,
                   collation: { caseLevel: true }
                 }
               },
-              { deleteOne: { q: { c: 1 } } }
+              { deleteOne: { filter: { c: 1 } } }
             ],
             { ordered: true }
           )
@@ -603,7 +559,7 @@ describe('Collation', function () {
     }
   });
 
-  it('Successfully fail bulkWrite due to unsupported collation', {
+  it('Successfully fail bulkWrite due to unsupported collation in update', {
     metadata: { requires: { generators: true, topology: 'single' } },
     test: function () {
       const configuration = this.configuration;
@@ -632,13 +588,63 @@ describe('Collation', function () {
             [
               {
                 updateOne: {
-                  q: { a: 2 },
-                  u: { $set: { a: 2 } },
+                  filter: { a: 2 },
+                  update: { $set: { a: 2 } },
                   upsert: true,
                   collation: { caseLevel: true }
                 }
               },
-              { deleteOne: { q: { c: 1 } } }
+              { deleteOne: { filter: { c: 1 } } }
+            ],
+            { ordered: true }
+          )
+          .then(() => {
+            throw new Error('should not succeed');
+          })
+          .catch(err => {
+            expect(err).to.exist;
+            expect(err.message).to.match(/does not support collation/);
+          })
+          .then(() => client.close());
+      });
+    }
+  });
+
+  it('Successfully fail bulkWrite due to unsupported collation in delete', {
+    metadata: { requires: { generators: true, topology: 'single' } },
+    test: function () {
+      const configuration = this.configuration;
+      const client = configuration.newClient(`mongodb://${testContext.server.uri()}/test`);
+      const primary = [Object.assign({}, mock.DEFAULT_ISMASTER, { maxWireVersion: 4 })];
+
+      testContext.server.setMessageHandler(request => {
+        const doc = request.document;
+        if (doc.ismaster) {
+          request.reply(primary[0]);
+        } else if (doc.update) {
+          request.reply({ ok: 1 });
+        } else if (doc.delete) {
+          request.reply({ ok: 1 });
+        } else if (doc.endSessions) {
+          request.reply({ ok: 1 });
+        }
+      });
+
+      return client.connect().then(() => {
+        const db = client.db(configuration.db);
+
+        return db
+          .collection('test')
+          .bulkWrite(
+            [
+              {
+                updateOne: {
+                  filter: { a: 2 },
+                  update: { $set: { a: 2 } },
+                  upsert: true
+                }
+              },
+              { deleteOne: { filter: { c: 1 }, collation: { caseLevel: true } } }
             ],
             { ordered: true }
           )
@@ -765,7 +771,7 @@ describe('Collation', function () {
     metadata: { requires: { mongodb: '>=3.4.0' } },
     test: function (done) {
       const configuration = this.configuration;
-      const client = configuration.newClient({ w: 1 }, { poolSize: 1, auto_reconnect: false });
+      const client = configuration.newClient({ w: 1 }, { maxPoolSize: 1 });
 
       client.connect().then(() => {
         const db = client.db(configuration.db);

@@ -1,4 +1,4 @@
-import { emitDeprecatedOptionWarning } from './utils';
+import { emitDeprecatedOptionWarning, resolveOptions } from './utils';
 import { ReadPreference, ReadPreferenceLike } from './read_preference';
 import { deprecate } from 'util';
 import {
@@ -6,17 +6,18 @@ import {
   checkCollectionName,
   deprecateOptions,
   MongoDBNamespace,
-  Callback
+  Callback,
+  getTopology
 } from './utils';
-import { ObjectId, Document, BSONSerializeOptions } from './bson';
+import { ObjectId, Document, BSONSerializeOptions, resolveBSONOptions } from './bson';
 import { MongoError } from './error';
 import { UnorderedBulkOperation } from './bulk/unordered';
 import { OrderedBulkOperation } from './bulk/ordered';
 import { ChangeStream, ChangeStreamOptions } from './change_stream';
 import { WriteConcern, WriteConcernOptions } from './write_concern';
 import { ReadConcern, ReadConcernLike } from './read_concern';
-import { AggregationCursor, CommandCursor, Cursor } from './cursor';
-import { AggregateOperation, AggregateOptions } from './operations/aggregate';
+import { AggregationCursor } from './cursor/aggregation_cursor';
+import type { AggregateOptions } from './operations/aggregate';
 import { BulkWriteOperation } from './operations/bulk_write';
 import { CountDocumentsOperation, CountDocumentsOptions } from './operations/count_documents';
 import {
@@ -28,12 +29,12 @@ import {
   IndexesOperation,
   IndexExistsOperation,
   IndexInformationOperation,
-  ListIndexesOperation,
   CreateIndexesOptions,
   DropIndexesOptions,
   ListIndexesOptions,
   IndexSpecification,
-  IndexDescription
+  IndexDescription,
+  ListIndexesCursor
 } from './operations/indexes';
 import { DistinctOperation, DistinctOptions } from './operations/distinct';
 import { DropCollectionOperation, DropCollectionOptions } from './operations/drop';
@@ -41,7 +42,7 @@ import {
   EstimatedDocumentCountOperation,
   EstimatedDocumentCountOptions
 } from './operations/estimated_document_count';
-import { FindOperation, FindOptions, Sort } from './operations/find';
+import type { FindOptions } from './operations/find';
 import { FindOneOperation } from './operations/find_one';
 import {
   FindAndModifyOperation,
@@ -50,13 +51,20 @@ import {
   FindOneAndUpdateOperation,
   FindAndModifyOptions
 } from './operations/find_and_modify';
-import { InsertManyOperation, InsertManyResult } from './operations/insert_many';
-import { InsertOneOperation, InsertOneOptions, InsertOneResult } from './operations/insert';
+import {
+  InsertOneOperation,
+  InsertOneOptions,
+  InsertOneResult,
+  InsertManyOperation,
+  InsertManyResult
+} from './operations/insert';
 import {
   UpdateOneOperation,
   UpdateManyOperation,
   UpdateOptions,
-  UpdateResult
+  UpdateResult,
+  ReplaceOneOperation,
+  ReplaceOptions
 } from './operations/update';
 import {
   DeleteOneOperation,
@@ -73,23 +81,21 @@ import {
 } from './operations/map_reduce';
 import { OptionsOperation } from './operations/options_operation';
 import { RenameOperation, RenameOptions } from './operations/rename';
-import { ReplaceOneOperation, ReplaceOptions } from './operations/replace_one';
 import { CollStatsOperation, CollStatsOptions } from './operations/stats';
 import { executeOperation } from './operations/execute_operation';
-import { EvalGroupOperation, GroupOperation } from './operations/group';
 import type { Db } from './db';
 import type { OperationOptions, Hint } from './operations/operation';
 import type { IndexInformationOptions } from './operations/common_functions';
 import type { CountOptions } from './operations/count';
 import type { BulkWriteResult, BulkWriteOptions, AnyBulkWriteOperation } from './bulk/common';
 import type { PkFactory } from './mongo_client';
-import type { Topology } from './sdam/topology';
 import type { Logger, LoggerOptions } from './logger';
-import type { OperationParent } from './operations/command';
+import type { Sort } from './sort';
+import { FindCursor } from './cursor/find_cursor';
 
 /** @public */
 export interface Collection {
-  /** @deprecated Use {@link Collection.dropIndexes#Class} instead */
+  /** @deprecated Use {@link Collection#dropIndexes} instead */
   dropAllIndexes(): void;
   removeMany(
     filter: Document,
@@ -122,17 +128,11 @@ export interface CollectionOptions
 export interface CollectionPrivate {
   pkFactory: PkFactory;
   db: Db;
-  topology: Topology;
   options: any;
   namespace: MongoDBNamespace;
   readPreference?: ReadPreference;
+  bsonOptions: BSONSerializeOptions;
   slaveOk?: boolean;
-  serializeFunctions?: boolean;
-  raw?: boolean;
-  promoteLongs?: boolean;
-  promoteValues?: boolean;
-  promoteBuffers?: boolean;
-  ignoreUndefined?: boolean;
   collectionHint?: Hint;
   readConcern?: ReadConcern;
   writeConcern?: WriteConcern;
@@ -166,11 +166,14 @@ export interface CollectionPrivate {
  * });
  * ```
  */
-export class Collection implements OperationParent {
+export class Collection {
   /** @internal */
   s: CollectionPrivate;
 
-  /** @internal Create a new Collection instance (INTERNAL TYPE, do not instantiate directly) */
+  /**
+   * Create a new Collection instance
+   * @internal
+   */
   constructor(db: Db, name: string, options?: CollectionOptions) {
     checkCollectionName(name);
     emitDeprecatedOptionWarning(options, ['promiseLibrary']);
@@ -179,7 +182,6 @@ export class Collection implements OperationParent {
     this.s = {
       db,
       options,
-      topology: db.s.topology,
       namespace: new MongoDBNamespace(db.databaseName, name),
       pkFactory: db.options?.pkFactory ?? {
         createPk() {
@@ -188,30 +190,10 @@ export class Collection implements OperationParent {
         }
       },
       readPreference: ReadPreference.fromOptions(options),
+      bsonOptions: resolveBSONOptions(options, db),
       readConcern: ReadConcern.fromOptions(options),
       writeConcern: WriteConcern.fromOptions(options),
-      slaveOk: options == null || options.slaveOk == null ? db.slaveOk : options.slaveOk,
-      serializeFunctions:
-        options == null || options.serializeFunctions == null
-          ? db.s.options?.serializeFunctions
-          : options.serializeFunctions,
-      raw: options == null || options.raw == null ? db.s.options?.raw : options.raw,
-      promoteLongs:
-        options == null || options.promoteLongs == null
-          ? db.s.options?.promoteLongs
-          : options.promoteLongs,
-      promoteValues:
-        options == null || options.promoteValues == null
-          ? db.s.options?.promoteValues
-          : options.promoteValues,
-      promoteBuffers:
-        options == null || options.promoteBuffers == null
-          ? db.s.options?.promoteBuffers
-          : options.promoteBuffers,
-      ignoreUndefined:
-        options == null || options.ignoreUndefined == null
-          ? db.s.options?.ignoreUndefined
-          : options.ignoreUndefined
+      slaveOk: options == null || options.slaveOk == null ? db.slaveOk : options.slaveOk
     };
   }
 
@@ -260,6 +242,10 @@ export class Collection implements OperationParent {
     return this.s.readPreference;
   }
 
+  get bsonOptions(): BSONSerializeOptions {
+    return this.s.bsonOptions;
+  }
+
   /**
    * The current writeConcern of the collection. If not explicitly defined for
    * this collection, will be inherited from the parent DB
@@ -299,15 +285,12 @@ export class Collection implements OperationParent {
     callback?: Callback<InsertOneResult>
   ): Promise<InsertOneResult> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
 
-    // Add ignoreUndefined
-    if (this.s.options.ignoreUndefined) {
-      options = Object.assign({}, options);
-      options.ignoreUndefined = this.s.options.ignoreUndefined;
-    }
-
-    return executeOperation(this.s.topology, new InsertOneOperation(this, doc, options), callback);
+    return executeOperation(
+      getTopology(this),
+      new InsertOneOperation(this, doc, resolveOptions(this, options)),
+      callback
+    );
   }
 
   /**
@@ -336,8 +319,8 @@ export class Collection implements OperationParent {
     options = options ? Object.assign({}, options) : { ordered: true };
 
     return executeOperation(
-      this.s.topology,
-      new InsertManyOperation(this, docs, options),
+      getTopology(this),
+      new InsertManyOperation(this, docs, resolveOptions(this, options)),
       callback
     );
   }
@@ -349,6 +332,8 @@ export class Collection implements OperationParent {
    *
    * ```js
    *  { insertOne: { document: { a: 1 } } }
+   *
+   *  { insertMany: [{ g: 1 }, { g: 2 }]}
    *
    *  { updateOne: { filter: {a:2}, update: {$set: {a:2}}, upsert:true } }
    *
@@ -362,6 +347,7 @@ export class Collection implements OperationParent {
    *
    *  { replaceOne: { filter: {c:3}, replacement: {c:4}, upsert:true}}
    *```
+   * Please note that raw operations are no longer accepted as of driver version 4.0.
    *
    * If documents passed in do not contain the **_id** field,
    * one will be added to each of the documents missing it by the driver, mutating the document. This behavior
@@ -396,8 +382,8 @@ export class Collection implements OperationParent {
     }
 
     return executeOperation(
-      this.s.topology,
-      new BulkWriteOperation(this, operations, options),
+      getTopology(this),
+      new BulkWriteOperation(this, operations, resolveOptions(this, options)),
       callback
     );
   }
@@ -410,33 +396,30 @@ export class Collection implements OperationParent {
    * @param options - Optional settings for the command
    * @param callback - An optional callback, a Promise will be returned if none is provided
    */
-  updateOne(filter: Document, update: Document): Promise<UpdateResult>;
-  updateOne(filter: Document, update: Document, callback: Callback<UpdateResult>): void;
-  updateOne(filter: Document, update: Document, options: UpdateOptions): Promise<UpdateResult>;
+  updateOne(filter: Document, update: Document): Promise<UpdateResult | Document>;
+  updateOne(filter: Document, update: Document, callback: Callback<UpdateResult | Document>): void;
+  updateOne(
+    filter: Document,
+    update: Document,
+    options: UpdateOptions
+  ): Promise<UpdateResult | Document>;
   updateOne(
     filter: Document,
     update: Document,
     options: UpdateOptions,
-    callback: Callback<UpdateResult>
+    callback: Callback<UpdateResult | Document>
   ): void;
   updateOne(
     filter: Document,
     update: Document,
-    options?: UpdateOptions | Callback<UpdateResult>,
-    callback?: Callback<UpdateResult>
-  ): Promise<UpdateResult> | void {
+    options?: UpdateOptions | Callback<UpdateResult | Document>,
+    callback?: Callback<UpdateResult | Document>
+  ): Promise<UpdateResult | Document> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = Object.assign({}, options);
-
-    // Add ignoreUndefined
-    if (this.s.options.ignoreUndefined) {
-      options = Object.assign({}, options);
-      options.ignoreUndefined = this.s.options.ignoreUndefined;
-    }
 
     return executeOperation(
-      this.s.topology,
-      new UpdateOneOperation(this, filter, update, options),
+      getTopology(this),
+      new UpdateOneOperation(this, filter, update, resolveOptions(this, options)),
       callback
     );
   }
@@ -449,37 +432,34 @@ export class Collection implements OperationParent {
    * @param options - Optional settings for the command
    * @param callback - An optional callback, a Promise will be returned if none is provided
    */
-  replaceOne(filter: Document, replacement: Document): Promise<UpdateResult>;
-  replaceOne(filter: Document, replacement: Document, callback: Callback<UpdateResult>): void;
+  replaceOne(filter: Document, replacement: Document): Promise<UpdateResult | Document>;
   replaceOne(
     filter: Document,
     replacement: Document,
-    options: ReplaceOptions
-  ): Promise<UpdateResult>;
-  replaceOne(
-    filter: Document,
-    replacement: Document,
-    options: ReplaceOptions,
-    callback: Callback<UpdateResult>
+    callback: Callback<UpdateResult | Document>
   ): void;
   replaceOne(
     filter: Document,
     replacement: Document,
-    options?: ReplaceOptions | Callback<UpdateResult>,
-    callback?: Callback<UpdateResult>
-  ): Promise<UpdateResult> | void {
+    options: ReplaceOptions
+  ): Promise<UpdateResult | Document>;
+  replaceOne(
+    filter: Document,
+    replacement: Document,
+    options: ReplaceOptions,
+    callback: Callback<UpdateResult | Document>
+  ): void;
+  replaceOne(
+    filter: Document,
+    replacement: Document,
+    options?: ReplaceOptions | Callback<UpdateResult | Document>,
+    callback?: Callback<UpdateResult | Document>
+  ): Promise<UpdateResult | Document> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = Object.assign({}, options);
-
-    // Add ignoreUndefined
-    if (this.s.options.ignoreUndefined) {
-      options = Object.assign({}, options);
-      options.ignoreUndefined = this.s.options.ignoreUndefined;
-    }
 
     return executeOperation(
-      this.s.topology,
-      new ReplaceOneOperation(this, filter, replacement, options),
+      getTopology(this),
+      new ReplaceOneOperation(this, filter, replacement, resolveOptions(this, options)),
       callback
     );
   }
@@ -492,33 +472,30 @@ export class Collection implements OperationParent {
    * @param options - Optional settings for the command
    * @param callback - An optional callback, a Promise will be returned if none is provided
    */
-  updateMany(filter: Document, update: Document): Promise<UpdateResult>;
-  updateMany(filter: Document, update: Document, callback: Callback<UpdateResult>): void;
-  updateMany(filter: Document, update: Document, options: UpdateOptions): Promise<UpdateResult>;
+  updateMany(filter: Document, update: Document): Promise<UpdateResult | Document>;
+  updateMany(filter: Document, update: Document, callback: Callback<UpdateResult | Document>): void;
+  updateMany(
+    filter: Document,
+    update: Document,
+    options: UpdateOptions
+  ): Promise<UpdateResult | Document>;
   updateMany(
     filter: Document,
     update: Document,
     options: UpdateOptions,
-    callback: Callback<UpdateResult>
+    callback: Callback<UpdateResult | Document>
   ): void;
   updateMany(
     filter: Document,
     update: Document,
-    options?: UpdateOptions | Callback<UpdateResult>,
-    callback?: Callback<UpdateResult>
-  ): Promise<UpdateResult> | void {
+    options?: UpdateOptions | Callback<UpdateResult | Document>,
+    callback?: Callback<UpdateResult | Document>
+  ): Promise<UpdateResult | Document> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = Object.assign({}, options);
-
-    // Add ignoreUndefined
-    if (this.s.options.ignoreUndefined) {
-      options = Object.assign({}, options);
-      options.ignoreUndefined = this.s.options.ignoreUndefined;
-    }
 
     return executeOperation(
-      this.s.topology,
-      new UpdateManyOperation(this, filter, update, options),
+      getTopology(this),
+      new UpdateManyOperation(this, filter, update, resolveOptions(this, options)),
       callback
     );
   }
@@ -540,17 +517,10 @@ export class Collection implements OperationParent {
     callback?: Callback<DeleteResult>
   ): Promise<DeleteResult> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = Object.assign({}, options);
-
-    // Add ignoreUndefined
-    if (this.s.options.ignoreUndefined) {
-      options = Object.assign({}, options);
-      options.ignoreUndefined = this.s.options.ignoreUndefined;
-    }
 
     return executeOperation(
-      this.s.topology,
-      new DeleteOneOperation(this, filter, options),
+      getTopology(this),
+      new DeleteOneOperation(this, filter, resolveOptions(this, options)),
       callback
     );
   }
@@ -584,23 +554,18 @@ export class Collection implements OperationParent {
       options = {};
     }
 
-    options = Object.assign({}, options);
-
-    // Add ignoreUndefined
-    if (this.s.options.ignoreUndefined) {
-      options = Object.assign({}, options);
-      options.ignoreUndefined = this.s.options.ignoreUndefined;
-    }
-
     return executeOperation(
-      this.s.topology,
-      new DeleteManyOperation(this, filter, options),
+      getTopology(this),
+      new DeleteManyOperation(this, filter, resolveOptions(this, options)),
       callback
     );
   }
 
   /**
    * Rename the collection.
+   *
+   * @remarks
+   * This operation does not inherit options from the Db or MongoClient.
    *
    * @param newName - New name of of the collection.
    * @param options - Optional settings for the command
@@ -616,9 +581,13 @@ export class Collection implements OperationParent {
     callback?: Callback<Collection>
   ): Promise<Collection> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = Object.assign({}, options, { readPreference: ReadPreference.PRIMARY });
 
-    return executeOperation(this.s.topology, new RenameOperation(this, newName, options), callback);
+    // Intentionally, we do not inherit options from parent for this operation.
+    return executeOperation(
+      getTopology(this),
+      new RenameOperation(this, newName, { ...options, readPreference: ReadPreference.PRIMARY }),
+      callback
+    );
   }
 
   /**
@@ -636,10 +605,10 @@ export class Collection implements OperationParent {
     callback?: Callback<boolean>
   ): Promise<boolean> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
+    options = options ?? {};
 
     return executeOperation(
-      this.s.topology,
+      getTopology(this),
       new DropCollectionOperation(this.s.db, this.collectionName, options),
       callback
     );
@@ -671,9 +640,12 @@ export class Collection implements OperationParent {
       (callback = query as Callback<Document>), (query = {}), (options = {});
     if (typeof options === 'function') (callback = options), (options = {});
     query = query || {};
-    options = options || {};
 
-    return executeOperation(this.s.topology, new FindOneOperation(this, query, options), callback);
+    return executeOperation(
+      getTopology(this),
+      new FindOneOperation(this, query, resolveOptions(this, options)),
+      callback
+    );
   }
 
   /**
@@ -681,10 +653,10 @@ export class Collection implements OperationParent {
    *
    * @param filter - The query predicate. If unspecified, then all documents in the collection will match the predicate
    */
-  find(): Cursor;
-  find(filter: Document): Cursor;
-  find(filter: Document, options: FindOptions): Cursor;
-  find(filter?: Document, options?: FindOptions): Cursor {
+  find(): FindCursor;
+  find(filter: Document): FindCursor;
+  find(filter: Document, options: FindOptions): FindCursor;
+  find(filter?: Document, options?: FindOptions): FindCursor {
     if (arguments.length > 2) {
       throw new TypeError('Third parameter to `collection.find()` must be undefined');
     }
@@ -692,10 +664,11 @@ export class Collection implements OperationParent {
       throw new TypeError('`options` parameter must not be function');
     }
 
-    return new Cursor(
-      this.s.topology,
-      new FindOperation(this, this.s.namespace, filter, options),
-      options
+    return new FindCursor(
+      getTopology(this),
+      this.s.namespace,
+      filter,
+      resolveOptions(this, options)
     );
   }
 
@@ -714,9 +687,12 @@ export class Collection implements OperationParent {
     callback?: Callback<Document>
   ): Promise<Document> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
 
-    return executeOperation(this.s.topology, new OptionsOperation(this, options), callback);
+    return executeOperation(
+      getTopology(this),
+      new OptionsOperation(this, resolveOptions(this, options)),
+      callback
+    );
   }
 
   /**
@@ -734,9 +710,12 @@ export class Collection implements OperationParent {
     callback?: Callback<boolean>
   ): Promise<boolean> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
 
-    return executeOperation(this.s.topology, new IsCappedOperation(this, options), callback);
+    return executeOperation(
+      getTopology(this),
+      new IsCappedOperation(this, resolveOptions(this, options)),
+      callback
+    );
   }
 
   /**
@@ -768,25 +747,24 @@ export class Collection implements OperationParent {
    * await collection.createIndex(['j', ['k', -1], { l: '2d' }])
    * ```
    */
-  createIndex(indexSpec: IndexSpecification): Promise<Document>;
-  createIndex(indexSpec: IndexSpecification, callback: Callback<Document>): void;
-  createIndex(indexSpec: IndexSpecification, options: CreateIndexesOptions): Promise<Document>;
+  createIndex(indexSpec: IndexSpecification): Promise<string>;
+  createIndex(indexSpec: IndexSpecification, callback: Callback<string>): void;
+  createIndex(indexSpec: IndexSpecification, options: CreateIndexesOptions): Promise<string>;
   createIndex(
     indexSpec: IndexSpecification,
     options: CreateIndexesOptions,
-    callback: Callback<Document>
+    callback: Callback<string>
   ): void;
   createIndex(
     indexSpec: IndexSpecification,
-    options?: CreateIndexesOptions | Callback<Document>,
-    callback?: Callback<Document>
-  ): Promise<Document> | void {
+    options?: CreateIndexesOptions | Callback<string>,
+    callback?: Callback<string>
+  ): Promise<string> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
 
     return executeOperation(
-      this.s.topology,
-      new CreateIndexOperation(this, this.collectionName, indexSpec, options),
+      getTopology(this),
+      new CreateIndexOperation(this, this.collectionName, indexSpec, resolveOptions(this, options)),
       callback
     );
   }
@@ -796,7 +774,7 @@ export class Collection implements OperationParent {
    * MongoDB 2.6 or higher. Earlier version of MongoDB will throw a command not supported
    * error.
    *
-   * **Note**: Unlike {@link (Collection:class).createIndex| createIndex}, this function takes in raw index specifications.
+   * **Note**: Unlike {@link Collection#createIndex| createIndex}, this function takes in raw index specifications.
    * Index specifications are defined {@link http://docs.mongodb.org/manual/reference/command/createIndexes/| here}.
    *
    * @param indexSpecs - An array of index specifications to be created
@@ -823,26 +801,31 @@ export class Collection implements OperationParent {
    * ]);
    * ```
    */
-  createIndexes(indexSpecs: IndexDescription[]): Promise<Document>;
-  createIndexes(indexSpecs: IndexDescription[], callback: Callback<Document>): void;
-  createIndexes(indexSpecs: IndexDescription[], options: CreateIndexesOptions): Promise<Document>;
+  createIndexes(indexSpecs: IndexDescription[]): Promise<string[]>;
+  createIndexes(indexSpecs: IndexDescription[], callback: Callback<string[]>): void;
+  createIndexes(indexSpecs: IndexDescription[], options: CreateIndexesOptions): Promise<string[]>;
   createIndexes(
     indexSpecs: IndexDescription[],
     options: CreateIndexesOptions,
-    callback: Callback<Document>
+    callback: Callback<string[]>
   ): void;
   createIndexes(
     indexSpecs: IndexDescription[],
-    options?: CreateIndexesOptions | Callback<Document>,
-    callback?: Callback<Document>
-  ): Promise<Document> | void {
+    options?: CreateIndexesOptions | Callback<string[]>,
+    callback?: Callback<string[]>
+  ): Promise<string[]> | void {
     if (typeof options === 'function') (callback = options), (options = {});
     options = options ? Object.assign({}, options) : {};
     if (typeof options.maxTimeMS !== 'number') delete options.maxTimeMS;
 
     return executeOperation(
-      this.s.topology,
-      new CreateIndexesOperation(this, this.collectionName, indexSpecs, options),
+      getTopology(this),
+      new CreateIndexesOperation(
+        this,
+        this.collectionName,
+        indexSpecs,
+        resolveOptions(this, options)
+      ),
       callback
     );
   }
@@ -864,13 +847,13 @@ export class Collection implements OperationParent {
     callback?: Callback<Document>
   ): Promise<Document> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
+    options = resolveOptions(this, options);
 
     // Run only against primary
     options.readPreference = ReadPreference.primary;
 
     return executeOperation(
-      this.s.topology,
+      getTopology(this),
       new DropIndexOperation(this, indexName, options),
       callback
     );
@@ -891,9 +874,12 @@ export class Collection implements OperationParent {
     callback?: Callback<Document>
   ): Promise<Document> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options ? Object.assign({}, options) : {};
 
-    return executeOperation(this.s.topology, new DropIndexesOperation(this, options), callback);
+    return executeOperation(
+      getTopology(this),
+      new DropIndexesOperation(this, resolveOptions(this, options)),
+      callback
+    );
   }
 
   /**
@@ -901,14 +887,8 @@ export class Collection implements OperationParent {
    *
    * @param options - Optional settings for the command
    */
-  listIndexes(options?: ListIndexesOptions): CommandCursor {
-    const cursor = new CommandCursor(
-      this.s.topology,
-      new ListIndexesOperation(this, options),
-      options
-    );
-
-    return cursor;
+  listIndexes(options?: ListIndexesOptions): ListIndexesCursor {
+    return new ListIndexesCursor(this, resolveOptions(this, options));
   }
 
   /**
@@ -932,11 +912,10 @@ export class Collection implements OperationParent {
     callback?: Callback<boolean>
   ): Promise<boolean> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
 
     return executeOperation(
-      this.s.topology,
-      new IndexExistsOperation(this, indexes, options),
+      getTopology(this),
+      new IndexExistsOperation(this, indexes, resolveOptions(this, options)),
       callback
     );
   }
@@ -956,11 +935,10 @@ export class Collection implements OperationParent {
     callback?: Callback<Document>
   ): Promise<Document> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
 
     return executeOperation(
-      this.s.topology,
-      new IndexInformationOperation(this.s.db, this.collectionName, options),
+      getTopology(this),
+      new IndexInformationOperation(this.s.db, this.collectionName, resolveOptions(this, options)),
       callback
     );
   }
@@ -980,19 +958,18 @@ export class Collection implements OperationParent {
     callback?: Callback<number>
   ): Promise<number> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
 
     return executeOperation(
-      this.s.topology,
-      new EstimatedDocumentCountOperation(this, options),
+      getTopology(this),
+      new EstimatedDocumentCountOperation(this, resolveOptions(this, options)),
       callback
     );
   }
 
   /**
    * Gets the number of documents matching the filter.
-   * For a fast count of the total documents in a collection see {@link Collection.estimatedDocumentCount| estimatedDocumentCount}.
-   * **Note**: When migrating from {@link Collection.count| count} to {@link Collection.countDocuments| countDocuments}
+   * For a fast count of the total documents in a collection see {@link Collection#estimatedDocumentCount| estimatedDocumentCount}.
+   * **Note**: When migrating from {@link Collection#count| count} to {@link Collection#countDocuments| countDocuments}
    * the following query operators must be replaced:
    *
    * | Operator | Replacement |
@@ -1037,10 +1014,13 @@ export class Collection implements OperationParent {
     }
 
     query = query || {};
-    options = options || {};
     return executeOperation(
-      this.s.topology,
-      new CountDocumentsOperation(this, query as Document, options as CountDocumentsOptions),
+      getTopology(this),
+      new CountDocumentsOperation(
+        this,
+        query as Document,
+        resolveOptions(this, options as CountDocumentsOptions)
+      ),
       callback
     );
   }
@@ -1079,10 +1059,14 @@ export class Collection implements OperationParent {
     }
 
     query = query || {};
-    options = options || {};
     return executeOperation(
-      this.s.topology,
-      new DistinctOperation(this, key, query as Document, options as DistinctOptions),
+      getTopology(this),
+      new DistinctOperation(
+        this,
+        key,
+        query as Document,
+        resolveOptions(this, options as DistinctOptions)
+      ),
       callback
     );
   }
@@ -1102,9 +1086,12 @@ export class Collection implements OperationParent {
     callback?: Callback<Document>
   ): Promise<Document> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
 
-    return executeOperation(this.s.topology, new IndexesOperation(this, options), callback);
+    return executeOperation(
+      getTopology(this),
+      new IndexesOperation(this, resolveOptions(this, options)),
+      callback
+    );
   }
 
   /**
@@ -1122,9 +1109,9 @@ export class Collection implements OperationParent {
     callback?: Callback<Document>
   ): Promise<Document> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
+    options = options ?? {};
 
-    return executeOperation(this.s.topology, new CollStatsOperation(this, options), callback);
+    return executeOperation(getTopology(this), new CollStatsOperation(this, options), callback);
   }
 
   /**
@@ -1148,11 +1135,10 @@ export class Collection implements OperationParent {
     callback?: Callback<Document>
   ): Promise<Document> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
 
     return executeOperation(
-      this.s.topology,
-      new FindOneAndDeleteOperation(this, filter, options),
+      getTopology(this),
+      new FindOneAndDeleteOperation(this, filter, resolveOptions(this, options)),
       callback
     );
   }
@@ -1185,11 +1171,10 @@ export class Collection implements OperationParent {
     callback?: Callback<Document>
   ): Promise<Document> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
 
     return executeOperation(
-      this.s.topology,
-      new FindOneAndReplaceOperation(this, filter, replacement, options),
+      getTopology(this),
+      new FindOneAndReplaceOperation(this, filter, replacement, resolveOptions(this, options)),
       callback
     );
   }
@@ -1222,11 +1207,10 @@ export class Collection implements OperationParent {
     callback?: Callback<Document>
   ): Promise<Document> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
 
     return executeOperation(
-      this.s.topology,
-      new FindOneAndUpdateOperation(this, filter, update, options),
+      getTopology(this),
+      new FindOneAndUpdateOperation(this, filter, update, resolveOptions(this, options)),
       callback
     );
   }
@@ -1248,11 +1232,12 @@ export class Collection implements OperationParent {
       throw new TypeError('`options` parameter must not be function');
     }
 
-    options = options || {};
     return new AggregationCursor(
-      this.s.topology,
-      new AggregateOperation(this, pipeline, options),
-      options
+      this,
+      getTopology(this),
+      this.s.namespace,
+      pipeline,
+      resolveOptions(this, options)
     );
   }
 
@@ -1267,7 +1252,7 @@ export class Collection implements OperationParent {
   watch(pipeline?: Document[]): ChangeStream;
   watch(pipeline?: Document[], options?: ChangeStreamOptions): ChangeStream {
     pipeline = pipeline || [];
-    options = options || {};
+    options = options ?? {};
 
     // Allow optionally not specifying a pipeline
     if (!Array.isArray(pipeline)) {
@@ -1275,7 +1260,7 @@ export class Collection implements OperationParent {
       pipeline = [];
     }
 
-    return new ChangeStream(this, pipeline, options);
+    return new ChangeStream(this, pipeline, resolveOptions(this, options));
   }
 
   /**
@@ -1333,32 +1318,20 @@ export class Collection implements OperationParent {
     }
 
     return executeOperation(
-      this.s.topology,
-      new MapReduceOperation(this, map, reduce, options),
+      getTopology(this),
+      new MapReduceOperation(this, map, reduce, resolveOptions(this, options)),
       callback
     );
   }
 
   /** Initiate an Out of order batch write operation. All operations will be buffered into insert/update/remove commands executed out of order. */
-  initializeUnorderedBulkOp(options?: BulkWriteOptions): any {
-    options = options || {};
-    // Give function's options precedence over session options.
-    if (options.ignoreUndefined == null) {
-      options.ignoreUndefined = this.s.options.ignoreUndefined;
-    }
-
-    return new UnorderedBulkOperation(this, options);
+  initializeUnorderedBulkOp(options?: BulkWriteOptions): UnorderedBulkOperation {
+    return new UnorderedBulkOperation(this, resolveOptions(this, options));
   }
 
   /** Initiate an In order bulk write operation. Operations will be serially executed in the order they are added, creating a new operation for each switch in types. */
-  initializeOrderedBulkOp(options?: BulkWriteOptions): any {
-    options = options || {};
-    // Give function's options precedence over session's options.
-    if (options.ignoreUndefined == null) {
-      options.ignoreUndefined = this.s.options.ignoreUndefined;
-    }
-
-    return new OrderedBulkOperation(this, options);
+  initializeOrderedBulkOp(options?: BulkWriteOptions): OrderedBulkOperation {
+    return new OrderedBulkOperation(this, resolveOptions(this, options));
   }
 
   /** Get the db scoped logger */
@@ -1412,13 +1385,7 @@ export class Collection implements OperationParent {
     callback: Callback<Document>
   ): Promise<UpdateResult> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
-
-    // Add ignoreUndefined
-    if (this.s.options.ignoreUndefined) {
-      options = Object.assign({}, options);
-      options.ignoreUndefined = this.s.options.ignoreUndefined;
-    }
+    options = options ?? {};
 
     return this.updateMany(selector, update, options, callback);
   }
@@ -1437,13 +1404,7 @@ export class Collection implements OperationParent {
     callback: Callback
   ): Promise<DeleteResult> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
-
-    // Add ignoreUndefined
-    if (this.s.options.ignoreUndefined) {
-      options = Object.assign({}, options);
-      options.ignoreUndefined = this.s.options.ignoreUndefined;
-    }
+    options = options ?? {};
 
     return this.deleteMany(selector, options, callback);
   }
@@ -1462,11 +1423,15 @@ export class Collection implements OperationParent {
     callback: Callback<Document>
   ): Promise<Document> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
 
     return executeOperation(
-      this.s.topology,
-      new EnsureIndexOperation(this.s.db, this.collectionName, fieldOrSpec, options),
+      getTopology(this),
+      new EnsureIndexOperation(
+        this.s.db,
+        this.collectionName,
+        fieldOrSpec,
+        resolveOptions(this, options)
+      ),
       callback
     );
   }
@@ -1475,10 +1440,10 @@ export class Collection implements OperationParent {
    * An estimated count of matching documents in the db to a query.
    *
    * **NOTE:** This method has been deprecated, since it does not provide an accurate count of the documents
-   * in a collection. To obtain an accurate count of documents in the collection, use {@link Collection.countDocuments| countDocuments}.
-   * To obtain an estimated count of all documents in the collection, use {@link Collection.estimatedDocumentCount| estimatedDocumentCount}.
+   * in a collection. To obtain an accurate count of documents in the collection, use {@link Collection#countDocuments| countDocuments}.
+   * To obtain an estimated count of all documents in the collection, use {@link Collection#estimatedDocumentCount| estimatedDocumentCount}.
    *
-   * @deprecated use {@link Collection.countDocuments| countDocuments} or {@link Collection.estimatedDocumentCount| estimatedDocumentCount} instead
+   * @deprecated use {@link Collection#countDocuments| countDocuments} or {@link Collection#estimatedDocumentCount| estimatedDocumentCount} instead
    *
    * @param query - The query for the count.
    * @param options - Optional settings for the command
@@ -1502,10 +1467,9 @@ export class Collection implements OperationParent {
     }
 
     query = query || {};
-    options = options || {};
     return executeOperation(
-      this.s.topology,
-      new EstimatedDocumentCountOperation(this, query, options),
+      getTopology(this),
+      new EstimatedDocumentCountOperation(this, query, resolveOptions(this, options)),
       callback
     );
   }
@@ -1549,80 +1513,13 @@ export class Collection implements OperationParent {
       options = {};
     }
 
+    options = resolveOptions(this, options);
     // Add the remove option
     options.remove = true;
 
     return executeOperation(
-      this.s.topology,
+      getTopology(this),
       new FindAndModifyOperation(this, query, sort as Sort, undefined, options),
-      callback
-    );
-  }
-
-  /**
-   * Run a group command across a collection
-   *
-   * @deprecated MongoDB 3.6 or higher no longer supports the group command. We recommend rewriting using the aggregation framework.
-   * @param keys - An object, array or function expressing the keys to group by.
-   * @param condition - An optional condition that must be true for a row to be considered.
-   * @param initial - Initial value of the aggregation counter object.
-   * @param reduce - The reduce function aggregates (reduces) the objects iterated
-   * @param finalize - An optional function to be run on each item in the result set just before the item is returned.
-   * @param command - Specify if you wish to run using the internal group command or using eval, default is true.
-   * @param options - Optional settings for the command
-   * @param callback - An optional callback, a Promise will be returned if none is provided
-   */
-  group(
-    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-    keys: any,
-    condition: Document,
-    initial: Document,
-    // TODO: Use labeled tuples when api-extractor supports TS 4.0
-    ...args: [/*reduce?:*/ any, /*finalize?:*/ any, /*command?:*/ any, /*callback?:*/ Callback]
-  ): Promise<Document> | void {
-    const callback = typeof args[args.length - 1] === 'function' ? args.pop() : undefined;
-    let reduce = args.length ? args.shift() : undefined;
-    let finalize = args.length ? args.shift() : undefined;
-    let command = args.length ? args.shift() : undefined;
-    const options = args.length ? args.shift() || {} : {};
-
-    // Make sure we are backward compatible
-    if (!(typeof finalize === 'function')) {
-      command = finalize;
-      finalize = undefined;
-    }
-
-    if (
-      !Array.isArray(keys) &&
-      keys instanceof Object &&
-      typeof keys !== 'function' &&
-      !(keys._bsontype === 'Code')
-    ) {
-      keys = Object.keys(keys);
-    }
-
-    if (typeof reduce === 'function') {
-      reduce = reduce.toString();
-    }
-
-    if (typeof finalize === 'function') {
-      finalize = finalize.toString();
-    }
-
-    // Set up the command as default
-    command = command == null ? true : command;
-
-    if (command == null) {
-      return executeOperation(
-        this.s.topology,
-        new EvalGroupOperation(this, keys, condition, initial, reduce, finalize, options),
-        callback
-      );
-    }
-
-    return executeOperation(
-      this.s.topology,
-      new GroupOperation(this, keys, condition, initial, reduce, finalize, options),
       callback
     );
   }
@@ -1666,13 +1563,13 @@ export class Collection implements OperationParent {
     callback?: Callback<Document>
   ): Promise<Document> | void {
     if (typeof options === 'function') (callback = options), (options = {});
-    options = options || {};
+    options = resolveOptions(this, options);
 
     // Force read preference primary
     options.readPreference = ReadPreference.primary;
 
     return executeOperation(
-      this.s.topology,
+      getTopology(this),
       new FindAndModifyOperation(this, query, sort, doc, options),
       callback
     );
@@ -1740,9 +1637,4 @@ Collection.prototype.findAndModify = deprecate(
 Collection.prototype.findAndRemove = deprecate(
   Collection.prototype.findAndRemove,
   'collection.findAndRemove is deprecated. Use findOneAndDelete instead.'
-);
-
-Collection.prototype.group = deprecate(
-  Collection.prototype.group,
-  'MongoDB 3.6 or higher no longer supports the group command. We recommend rewriting using the aggregation framework.'
 );

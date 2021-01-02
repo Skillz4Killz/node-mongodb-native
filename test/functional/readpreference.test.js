@@ -81,7 +81,7 @@ describe('ReadPreference', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         expect(err).to.not.exist;
@@ -112,51 +112,12 @@ describe('ReadPreference', function () {
     }
   });
 
-  it('Should correctly apply collection level read Preference to group', {
-    metadata: { requires: { mongodb: '>=2.6.0,<=4.0.x', topology: ['single', 'ssl'] } },
-
-    test: function (done) {
-      var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
-      client.connect(function (err, client) {
-        var db = client.db(configuration.db);
-        expect(err).to.not.exist;
-        // Set read preference
-        var collection = db.collection('read_pref_1', {
-          readPreference: ReadPreference.SECONDARY_PREFERRED
-        });
-
-        // Save checkout function
-        var command = client.topology.command;
-        // Set up our checker method
-        client.topology.command = function () {
-          var args = Array.prototype.slice.call(arguments, 0);
-          if (args[0] === 'integration_tests.$cmd') {
-            test.equal(ReadPreference.SECONDARY_PREFERRED, args[2].readPreference.mode);
-          }
-
-          return command.apply(db.s.topology, args);
-        };
-
-        // Execute count
-        collection.group([], {}, { count: 0 }, 'function (obj, prev) { prev.count++; }', function (
-          err
-        ) {
-          expect(err).to.not.exist;
-          client.topology.command = command;
-
-          client.close(done);
-        });
-      });
-    }
-  });
-
   it('Should correctly apply collection level read Preference to mapReduce', {
     metadata: { requires: { mongodb: '>=2.6.0', topology: ['single', 'ssl'] } },
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         expect(err).to.not.exist;
@@ -205,7 +166,7 @@ describe('ReadPreference', function () {
 
       test: function (done) {
         var configuration = this.configuration;
-        var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+        var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
         client.connect(function (err, client) {
           var db = client.db(configuration.db);
           expect(err).to.not.exist;
@@ -251,7 +212,7 @@ describe('ReadPreference', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         expect(err).to.not.exist;
@@ -283,7 +244,7 @@ describe('ReadPreference', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         expect(err).to.not.exist;
@@ -334,7 +295,7 @@ describe('ReadPreference', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         expect(err).to.not.exist;
@@ -369,7 +330,10 @@ describe('ReadPreference', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient({ w: 1, readPreference: 'secondary' }, { poolSize: 1 });
+      var client = configuration.newClient(
+        { w: 1, readPreference: 'secondary' },
+        { maxPoolSize: 1 }
+      );
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         // Save checkout function
@@ -411,7 +375,7 @@ describe('ReadPreference', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         expect(err).to.not.exist;
@@ -430,7 +394,7 @@ describe('ReadPreference', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         expect(err).to.not.exist;
@@ -449,7 +413,7 @@ describe('ReadPreference', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         expect(err).to.not.exist;
@@ -469,14 +433,14 @@ describe('ReadPreference', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         expect(err).to.not.exist;
         var cursor = db
           .collection('test', { readPreference: ReadPreference.SECONDARY_PREFERRED })
           .listIndexes();
-        test.equal(cursor.options.readPreference.mode, 'secondaryPreferred');
+        test.equal(cursor.readPreference.mode, 'secondaryPreferred');
         client.close(done);
       });
     }
@@ -489,7 +453,7 @@ describe('ReadPreference', function () {
     client.connect((err, client) => {
       const db = client.db(configuration.db);
       expect(db.collection.bind(db, 'test', { readPreference: 'invalid' })).to.throw(
-        'Invalid read preference mode invalid'
+        'Invalid read preference mode "invalid"'
       );
 
       client.close(done);
@@ -514,7 +478,7 @@ describe('ReadPreference', function () {
       })
     });
 
-    it('should set hedge using [.setReadPreference & empty hedge] ', {
+    it('should set hedge using [.withReadPreference & empty hedge] ', {
       metadata: { requires: { mongodb: '>=3.6.0' } },
       test: withMonitoredClient(['find'], function (client, events, done) {
         const rp = new ReadPreference(ReadPreference.SECONDARY, null, { hedge: {} });
@@ -522,7 +486,7 @@ describe('ReadPreference', function () {
           .db(this.configuration.db)
           .collection('test')
           .find({})
-          .setReadPreference(rp)
+          .withReadPreference(rp)
           .toArray(err => {
             expect(err).to.not.exist;
             const expected = { mode: ReadPreference.SECONDARY, hedge: {} };
@@ -532,7 +496,7 @@ describe('ReadPreference', function () {
       })
     });
 
-    it('should set hedge using [.setReadPreference & enabled hedge] ', {
+    it('should set hedge using [.withReadPreference & enabled hedge] ', {
       metadata: { requires: { mongodb: '>=3.6.0' } },
       test: withMonitoredClient(['find'], function (client, events, done) {
         const rp = new ReadPreference(ReadPreference.SECONDARY, null, { hedge: { enabled: true } });
@@ -540,7 +504,7 @@ describe('ReadPreference', function () {
           .db(this.configuration.db)
           .collection('test')
           .find({})
-          .setReadPreference(rp)
+          .withReadPreference(rp)
           .toArray(err => {
             expect(err).to.not.exist;
             const expected = { mode: ReadPreference.SECONDARY, hedge: { enabled: true } };
@@ -550,7 +514,7 @@ describe('ReadPreference', function () {
       })
     });
 
-    it('should set hedge using [.setReadPreference & disabled hedge] ', {
+    it('should set hedge using [.withReadPreference & disabled hedge] ', {
       metadata: { requires: { mongodb: '>=3.6.0' } },
       test: withMonitoredClient(['find'], function (client, events, done) {
         const rp = new ReadPreference(ReadPreference.SECONDARY, null, {
@@ -560,7 +524,7 @@ describe('ReadPreference', function () {
           .db(this.configuration.db)
           .collection('test')
           .find({})
-          .setReadPreference(rp)
+          .withReadPreference(rp)
           .toArray(err => {
             expect(err).to.not.exist;
             const expected = { mode: ReadPreference.SECONDARY, hedge: { enabled: false } };
@@ -570,7 +534,7 @@ describe('ReadPreference', function () {
       })
     });
 
-    it('should set hedge using [.setReadPreference & undefined hedge] ', {
+    it('should set hedge using [.withReadPreference & undefined hedge] ', {
       metadata: { requires: { mongodb: '>=3.6.0' } },
       test: withMonitoredClient(['find'], function (client, events, done) {
         const rp = new ReadPreference(ReadPreference.SECONDARY, null);
@@ -578,7 +542,7 @@ describe('ReadPreference', function () {
           .db(this.configuration.db)
           .collection('test')
           .find({})
-          .setReadPreference(rp)
+          .withReadPreference(rp)
           .toArray(err => {
             expect(err).to.not.exist;
             const expected = { mode: ReadPreference.SECONDARY };
@@ -595,7 +559,6 @@ describe('ReadPreference', function () {
     beforeEach(function () {
       const configuration = this.configuration;
       const client = this.configuration.newClient(configuration.writeConcernMax(), {
-        useUnifiedTopology: true,
         readPreference: 'primaryPreferred'
       });
       return withClient(client, (client, done) => {
@@ -628,7 +591,6 @@ describe('ReadPreference', function () {
         test: function () {
           const configuration = this.configuration;
           const client = this.configuration.newClient(configuration.writeConcernMax(), {
-            useUnifiedTopology: true,
             readPreference: 'primaryPreferred'
           });
           return withClient(client, (client, done) => {

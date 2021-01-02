@@ -7,7 +7,7 @@ const { TopologyType } = require('../../../../src/sdam/common');
  * example:
  * metadata: {
  *    requires: {
- *      topology: 'single' | 'replicaset' | 'sharded' | 'auth' | 'ssl'
+ *      topology: 'single' | 'replicaset' | 'sharded'
  *    }
  * }
  */
@@ -16,7 +16,7 @@ class MongoDBTopologyFilter {
     let type = client.topology.description.type;
     context.topologyType = type;
     this.runtimeTopology = topologyTypeToString(type);
-    console.log(`[ topology type: ${this.runtimeTopology} ]`);
+    console.error(`[ topology type: ${this.runtimeTopology} ]`);
     callback();
   }
 

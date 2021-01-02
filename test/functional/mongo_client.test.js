@@ -3,8 +3,10 @@
 var f = require('util').format;
 var test = require('./shared').assert;
 var setupDatabase = require('./shared').setupDatabase;
+const { ReadPreference } = require('../../src');
 const { Db } = require('../../src/db');
 const expect = require('chai').expect;
+const { getTopology } = require('../../src/utils');
 
 describe('MongoClient', function () {
   before(function () {
@@ -23,13 +25,9 @@ describe('MongoClient', function () {
       const client = configuration.newClient(
         {},
         {
-          w: 1,
-          wtimeout: 1000,
-          fsync: true,
-          j: true,
+          writeConcern: { w: 1, wtimeout: 1000, fsync: true, j: true },
           readPreference: 'nearest',
           readPreferenceTags: { loc: 'ny' },
-          native_parser: false,
           forceServerObjectId: true,
           pkFactory: {
             createPk() {
@@ -38,8 +36,7 @@ describe('MongoClient', function () {
           },
           serializeFunctions: true,
           raw: true,
-          numberOfRetries: 10,
-          bufferMaxEntries: 0
+          numberOfRetries: 10
         }
       );
 
@@ -56,10 +53,9 @@ describe('MongoClient', function () {
 
         test.equal(true, db.s.options.forceServerObjectId);
         test.equal(1, db.s.pkFactory.createPk());
-        test.equal(true, db.s.options.serializeFunctions);
-        test.equal(true, db.s.options.raw);
+        test.equal(true, db.bsonOptions.serializeFunctions);
+        test.equal(true, db.bsonOptions.raw);
         test.equal(10, db.s.options.numberOfRetries);
-        test.equal(0, db.s.options.bufferMaxEntries);
 
         client.close(done);
       });
@@ -70,33 +66,10 @@ describe('MongoClient', function () {
     metadata: {
       requires: { topology: ['single', 'replicaset', 'sharded', 'ssl', 'heap', 'wiredtiger'] }
     },
-
-    test: function (done) {
-      var configuration = this.configuration;
-      const client = configuration.newClient('user:password@localhost:27017/test');
-
-      client.connect(function (err) {
-        expect(err).to.exist.and.to.have.property('message', 'Invalid connection string');
-        done();
-      });
-    }
-  });
-
-  it('Should fail due to wrong uri user:password@localhost, with new url parser', {
-    metadata: {
-      requires: { topology: ['single', 'replicaset', 'sharded', 'ssl', 'heap', 'wiredtiger'] }
-    },
-
-    test: function (done) {
-      var configuration = this.configuration;
-      const client = configuration.newClient('user:password@localhost:27017/test', {
-        useNewUrlParser: true
-      });
-
-      client.connect(function (err) {
-        test.equal(err.message, 'Invalid connection string');
-        done();
-      });
+    test() {
+      expect(() => this.configuration.newClient('user:password@localhost:27017/test')).to.throw(
+        'Invalid connection string user:password@localhost:27017/test'
+      );
     }
   });
 
@@ -120,7 +93,7 @@ describe('MongoClient', function () {
   });
 
   it('should correctly connect to mongodb using domain socket', {
-    metadata: { requires: { topology: ['single'] } },
+    metadata: { requires: { topology: ['single'], os: '!win32' } },
 
     test: function (done) {
       var configuration = this.configuration;
@@ -218,9 +191,9 @@ describe('MongoClient', function () {
 
       client.connect(function (err, client) {
         expect(err).to.not.exist;
-        var db = client.db(configuration.db);
-        expect(db).nested.property('s.topology.s.options.connectTimeoutMS').to.equal(0);
-        expect(db).nested.property('s.topology.s.options.socketTimeoutMS').to.equal(0);
+        const topology = getTopology(client.db(configuration.db));
+        expect(topology).nested.property('s.options.connectTimeoutMS').to.equal(0);
+        expect(topology).nested.property('s.options.socketTimeoutMS').to.equal(0);
 
         client.close(done);
       });
@@ -300,5 +273,11 @@ describe('MongoClient', function () {
           throw err;
         }
       });
+  });
+
+  it('should cache a resolved readPreference from options', function () {
+    const client = this.configuration.newClient({}, { readPreference: ReadPreference.SECONDARY });
+    expect(client.readPreference).to.be.instanceOf(ReadPreference);
+    expect(client.readPreference).to.have.property('mode', ReadPreference.SECONDARY);
   });
 });

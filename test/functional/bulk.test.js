@@ -1,10 +1,17 @@
 'use strict';
-const test = require('./shared').assert,
-  setupDatabase = require('./shared').setupDatabase,
-  expect = require('chai').expect;
-
-const MongoError = require('../../src/error').MongoError;
-const ignoreNsNotFound = require('./shared').ignoreNsNotFound;
+const {
+  withClient,
+  withClientV2,
+  withMonitoredClient,
+  setupDatabase,
+  ignoreNsNotFound
+} = require('./shared');
+const test = require('./shared').assert;
+const { MongoError } = require('../../src/error');
+const { Long } = require('../../src');
+const chai = require('chai');
+const expect = chai.expect;
+chai.use(require('chai-subset'));
 
 describe('Bulk', function () {
   before(function () {
@@ -19,7 +26,7 @@ describe('Bulk', function () {
     test: function (done) {
       var self = this;
       var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect(function (err, client) {
@@ -77,7 +84,7 @@ describe('Bulk', function () {
     metadata: { requires: { mongodb: '>=3.6.x' } },
     test: function (done) {
       const configuration = this.configuration;
-      const client = configuration.newClient({}, { w: 1 });
+      const client = configuration.newClient({ w: 1 });
 
       client.connect((err, client) => {
         const db = client.db(configuration.db);
@@ -107,7 +114,7 @@ describe('Bulk', function () {
 
     test: function () {
       const client = this.configuration.newClient(this.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       return client
@@ -137,7 +144,7 @@ describe('Bulk', function () {
 
     test: function () {
       var client = this.configuration.newClient(this.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       return client.connect().then(client => {
@@ -158,6 +165,108 @@ describe('Bulk', function () {
     }
   });
 
+  it('should inherit promote long false from db during unordered bulk operation', function () {
+    const client = this.configuration.newClient(this.configuration.writeConcernMax(), {
+      promoteLongs: true
+    });
+
+    return withClient.call(this, client, (client, done) => {
+      const db = client.db('shouldInheritPromoteLongFalseFromDb1', { promoteLongs: false });
+      const coll = db.collection('test');
+
+      const batch = coll.initializeUnorderedBulkOp();
+      batch.insert({ a: Long.fromNumber(10) });
+      batch.execute((err, result) => {
+        expect(err).to.not.exist;
+        expect(result).to.exist;
+
+        coll.findOne((err, item) => {
+          expect(err).to.not.exist;
+          expect(item.a).to.not.be.a('number');
+          expect(item.a).to.have.property('_bsontype');
+          expect(item.a._bsontype).to.be.equal('Long');
+
+          done();
+        });
+      });
+    });
+  });
+
+  it(
+    'should inherit promote long false from collection during unordered bulk operation',
+    withClient(function (client, done) {
+      const db = client.db('shouldInheritPromoteLongFalseFromColl1', { promoteLongs: true });
+      const coll = db.collection('test', { promoteLongs: false });
+
+      const batch = coll.initializeUnorderedBulkOp();
+      batch.insert({ a: Long.fromNumber(10) });
+      batch.execute((err, result) => {
+        expect(err).to.not.exist;
+        expect(result).to.exist;
+
+        coll.findOne((err, item) => {
+          expect(err).to.not.exist;
+          expect(item.a).to.not.be.a('number');
+          expect(item.a).to.have.property('_bsontype');
+          expect(item.a._bsontype).to.be.equal('Long');
+
+          done();
+        });
+      });
+    })
+  );
+
+  it('should inherit promote long false from db during ordered bulk operation', function () {
+    const client = this.configuration.newClient(this.configuration.writeConcernMax(), {
+      promoteLongs: true
+    });
+
+    return withClient.call(this, client, (client, done) => {
+      const db = client.db('shouldInheritPromoteLongFalseFromDb2', { promoteLongs: false });
+      const coll = db.collection('test');
+
+      const batch = coll.initializeOrderedBulkOp();
+      batch.insert({ a: Long.fromNumber(10) });
+      batch.execute((err, result) => {
+        expect(err).to.not.exist;
+        expect(result).to.exist;
+
+        coll.findOne((err, item) => {
+          expect(err).to.not.exist;
+          expect(item.a).to.not.be.a('number');
+          expect(item.a).to.have.property('_bsontype');
+          expect(item.a._bsontype).to.be.equal('Long');
+
+          done();
+        });
+      });
+    });
+  });
+
+  it(
+    'should inherit promote long false from collection during ordered bulk operation',
+    withClient(function (client, done) {
+      const db = client.db('shouldInheritPromoteLongFalseFromColl2', { promoteLongs: true });
+      const coll = db.collection('test', { promoteLongs: false });
+
+      const batch = coll.initializeOrderedBulkOp();
+      batch.insert({ a: Long.fromNumber(10) });
+      batch.execute((err, result) => {
+        expect(err).to.not.exist;
+        expect(result).to.exist;
+
+        coll.findOne((err, item) => {
+          expect(err).to.not.exist;
+          expect(item.a).to.not.be.a('number');
+          expect(item.a).to.have.property('_bsontype');
+          expect(item.a._bsontype).to.be.equal('Long');
+
+          done();
+        });
+      });
+    })
+  );
+
   it('should correctly handle ordered multiple batch api write command errors', {
     metadata: {
       requires: { topology: ['single', 'replicaset', 'sharded', 'ssl', 'heap', 'wiredtiger'] }
@@ -166,7 +275,7 @@ describe('Bulk', function () {
     test: function (done) {
       var self = this;
       var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect(function (err, client) {
@@ -231,7 +340,7 @@ describe('Bulk', function () {
     test: function (done) {
       var self = this;
       var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect(function (err, client) {
@@ -267,7 +376,7 @@ describe('Bulk', function () {
     test: function (done) {
       var self = this;
       var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect(function (err, client) {
@@ -313,7 +422,7 @@ describe('Bulk', function () {
       test: function (done) {
         var self = this;
         var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
-          poolSize: 1
+          maxPoolSize: 1
         });
 
         client.connect(function (err, client) {
@@ -369,7 +478,7 @@ describe('Bulk', function () {
       test: function (done) {
         var self = this;
         var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
-          poolSize: 1
+          maxPoolSize: 1
         });
 
         client.connect(function (err, client) {
@@ -438,7 +547,7 @@ describe('Bulk', function () {
     test: function (done) {
       var self = this;
       var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect(function (err, client) {
@@ -480,7 +589,7 @@ describe('Bulk', function () {
 
     test: function (done) {
       var self = this;
-      var client = self.configuration.newClient({ w: 1 }, { poolSize: 1, auto_reconnect: false });
+      var client = self.configuration.newClient({ w: 1 }, { maxPoolSize: 1 });
 
       client.connect(function (err, client) {
         var db = client.db(self.configuration.db);
@@ -504,7 +613,7 @@ describe('Bulk', function () {
     test: function (done) {
       var self = this;
       var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect(function (err, client) {
@@ -519,7 +628,7 @@ describe('Bulk', function () {
         bulk.find({ b: 1 }).upsert().update({ b: 1 });
         bulk.find({ c: 1 }).remove();
 
-        bulk.execute({ w: 0 }, function (err, result) {
+        bulk.execute({ writeConcern: { w: 0 } }, function (err, result) {
           expect(err).to.not.exist;
           test.equal(0, result.nUpserted);
           test.equal(0, result.nInserted);
@@ -540,7 +649,7 @@ describe('Bulk', function () {
     test: function (done) {
       var self = this;
       var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect(function (err, client) {
@@ -604,7 +713,7 @@ describe('Bulk', function () {
   it('should correctly handle multiple unordered batch API', function (done) {
     const configuration = this.configuration;
     const client = configuration.newClient(configuration.writeConcernMax(), {
-      poolSize: 1
+      maxPoolSize: 1
     });
 
     client.connect((err, client) => {
@@ -653,7 +762,7 @@ describe('Bulk', function () {
     test: function (done) {
       var self = this;
       var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect(function (err, client) {
@@ -687,7 +796,7 @@ describe('Bulk', function () {
     test: function (done) {
       var self = this;
       var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect(function (err, client) {
@@ -729,7 +838,7 @@ describe('Bulk', function () {
     test: function (done) {
       var self = this;
       var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect(function (err, client) {
@@ -782,7 +891,7 @@ describe('Bulk', function () {
   it('should provide descriptive error message for unordered batch with duplicate key errors on inserts', function (done) {
     const configuration = this.configuration;
     const client = configuration.newClient(configuration.writeConcernMax(), {
-      poolSize: 1
+      maxPoolSize: 1
     });
 
     client.connect((err, client) => {
@@ -840,7 +949,7 @@ describe('Bulk', function () {
       test: function (done) {
         var self = this;
         var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
-          poolSize: 1
+          maxPoolSize: 1
         });
 
         client.connect(function (err, client) {
@@ -910,7 +1019,7 @@ describe('Bulk', function () {
     test: function (done) {
       var self = this;
       var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect(function (err, client) {
@@ -951,7 +1060,7 @@ describe('Bulk', function () {
     test: function (done) {
       var self = this;
       var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect(function (err, client) {
@@ -987,7 +1096,7 @@ describe('Bulk', function () {
 
     test: function (done) {
       var self = this;
-      var client = self.configuration.newClient({ w: 1 }, { poolSize: 1, auto_reconnect: false });
+      var client = self.configuration.newClient({ w: 1 }, { maxPoolSize: 1 });
 
       client.connect(function (err, client) {
         var db = client.db(self.configuration.db);
@@ -1011,7 +1120,7 @@ describe('Bulk', function () {
     test: function (done) {
       var self = this;
       var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect(function (err, client) {
@@ -1025,7 +1134,7 @@ describe('Bulk', function () {
         bulk.find({ b: 1 }).upsert().update({ b: 1 });
         bulk.find({ c: 1 }).remove();
 
-        bulk.execute({ w: 0 }, function (err, result) {
+        bulk.execute({ writeConcern: { w: 0 } }, function (err, result) {
           expect(err).to.not.exist;
           test.equal(0, result.nUpserted);
           test.equal(0, result.nInserted);
@@ -1045,13 +1154,44 @@ describe('Bulk', function () {
    * Ordered
    *
    *******************************************************************/
+  it('should provide an accessor for operations on ordered bulk ops', function (done) {
+    var self = this;
+    var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
+      maxPoolSize: 1
+    });
+
+    client.connect(function (err, client) {
+      var db = client.db(self.configuration.db);
+      var col = db.collection('bulk_get_operations_test');
+
+      var batch = col.initializeOrderedBulkOp();
+      batch.insert({ b: 1, a: 1 });
+      batch
+        .find({ b: 2 })
+        .upsert()
+        .updateOne({ $set: { a: 1 } });
+      batch.insert({ b: 3, a: 2 });
+      const batches = batch.batches;
+      expect(batches).to.have.lengthOf(3);
+      expect(batches[0].operations[0]).to.containSubset({ b: 1, a: 1 });
+      expect(batches[1].operations[0]).to.containSubset({
+        q: { b: 2 },
+        u: { $set: { a: 1 } },
+        multi: false,
+        upsert: true
+      });
+      expect(batches[2].operations[0]).to.containSubset({ b: 3, a: 2 });
+      client.close(done);
+    });
+  });
+
   it('should fail with w:2 and wtimeout write concern due single mongod instance ordered', {
     metadata: { requires: { topology: 'single', mongodb: '>2.5.4' } },
 
     test: function (done) {
       var self = this;
       var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect(function (err, client) {
@@ -1061,7 +1201,7 @@ describe('Bulk', function () {
         batch.insert({ a: 1 });
         batch.insert({ a: 2 });
 
-        batch.execute({ w: 2, wtimeout: 1000 }, function (err) {
+        batch.execute({ writeConcern: { w: 2, wtimeout: 1000 } }, function (err) {
           test.ok(err != null);
           test.ok(err.code != null);
           test.ok(err.errmsg != null);
@@ -1085,7 +1225,7 @@ describe('Bulk', function () {
     test: function (done) {
       var self = this;
       var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect(function (err, client) {
@@ -1116,13 +1256,44 @@ describe('Bulk', function () {
    * Unordered
    *
    *******************************************************************/
+  it('should provide an accessor for operations on unordered bulk ops', function (done) {
+    var self = this;
+    var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
+      maxPoolSize: 1
+    });
+
+    client.connect(function (err, client) {
+      var db = client.db(self.configuration.db);
+      var col = db.collection('bulk_get_operations_test');
+
+      var batch = col.initializeUnorderedBulkOp();
+      batch.insert({ b: 1, a: 1 });
+      batch
+        .find({ b: 2 })
+        .upsert()
+        .updateOne({ $set: { a: 1 } });
+      batch.insert({ b: 3, a: 2 });
+      const batches = batch.batches;
+      expect(batches).to.have.lengthOf(2);
+      expect(batches[0].operations[0]).to.containSubset({ b: 1, a: 1 });
+      expect(batches[0].operations[1]).to.containSubset({ b: 3, a: 2 });
+      expect(batches[1].operations[0]).to.containSubset({
+        q: { b: 2 },
+        u: { $set: { a: 1 } },
+        multi: false,
+        upsert: true
+      });
+      client.close(done);
+    });
+  });
+
   it('should fail with w:2 and wtimeout write concern due single mongod instance unordered', {
     metadata: { requires: { topology: 'single', mongodb: '>2.5.4' } },
 
     test: function (done) {
       var self = this;
       var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect(function (err, client) {
@@ -1132,7 +1303,7 @@ describe('Bulk', function () {
         batch.insert({ a: 1 });
         batch.insert({ a: 2 });
 
-        batch.execute({ w: 2, wtimeout: 1000 }, function (err) {
+        batch.execute({ writeConcern: { w: 2, wtimeout: 1000 } }, function (err) {
           test.ok(err != null);
           test.ok(err.code != null);
           test.ok(err.errmsg != null);
@@ -1149,7 +1320,7 @@ describe('Bulk', function () {
     test: function (done) {
       var self = this;
       var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect(function (err, client) {
@@ -1182,7 +1353,7 @@ describe('Bulk', function () {
     test: function (done) {
       var self = this;
       var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect(function (err, client) {
@@ -1242,7 +1413,7 @@ describe('Bulk', function () {
     test: function (done) {
       var self = this;
       var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect(function (err, client) {
@@ -1309,7 +1480,7 @@ describe('Bulk', function () {
     test: function (done) {
       var self = this;
       var client = self.configuration.newClient(self.configuration.writeConcernMax(), {
-        poolSize: 1
+        maxPoolSize: 1
       });
 
       client.connect(function (err, client) {
@@ -1341,7 +1512,7 @@ describe('Bulk', function () {
       metadata: { requires: { mongodb: '>=2.6.0', topology: 'single' } },
       test: function (done) {
         var self = this;
-        var client = self.configuration.newClient({ w: 1 }, { poolSize: 1 });
+        var client = self.configuration.newClient({ w: 1 }, { maxPoolSize: 1 });
         client.connect(function (err, client) {
           var db = client.db(self.configuration.db);
           db.collection('doesnt_matter').insertMany([], function (err) {
@@ -1360,7 +1531,7 @@ describe('Bulk', function () {
       metadata: { requires: { mongodb: '>=2.6.0', topology: 'single' } },
       test: function (done) {
         var self = this;
-        var client = self.configuration.newClient({ w: 1 }, { poolSize: 1 });
+        var client = self.configuration.newClient({ w: 1 }, { maxPoolSize: 1 });
 
         client.connect(function (err, client) {
           var db = client.db(self.configuration.db);
@@ -1376,7 +1547,7 @@ describe('Bulk', function () {
 
   it('should return an error instead of throwing when an empty bulk operation is submitted (with promise)', function () {
     var self = this;
-    var client = self.configuration.newClient({ w: 1 }, { poolSize: 1 });
+    var client = self.configuration.newClient({ w: 1 }, { maxPoolSize: 1 });
 
     return client
       .connect()
@@ -1640,6 +1811,103 @@ describe('Bulk', function () {
         )
         .then(() => coll.findOne({ email: 'adam@gmail.com' }))
         .then(updatedAdam => expect(updatedAdam).property('age').to.equal(39));
+    });
+  });
+
+  it(
+    'should return correct ids for documents with generated ids',
+    withClientV2(function (client, done) {
+      const bulk = client.db().collection('coll').initializeUnorderedBulkOp();
+      for (let i = 0; i < 2; i++) bulk.insert({ x: 1 });
+      bulk.execute((err, result) => {
+        expect(err).to.not.exist;
+        expect(result).property('insertedIds').to.exist;
+        expect(Object.keys(result.insertedIds)).to.have.length(2);
+        expect(result.insertedIds[0]).to.exist;
+        expect(result.insertedIds[1]).to.exist;
+        done();
+      });
+    })
+  );
+
+  it(
+    'should throw an error if bulk execute is called more than once',
+    withClientV2(function (client, done) {
+      const bulk = client.db().collection('coll').initializeUnorderedBulkOp();
+      bulk.insert({});
+
+      bulk.execute((err, result) => {
+        expect(err).to.not.exist;
+        expect(result).to.exist;
+
+        bulk.execute(err => {
+          expect(err).to.match(/Batch cannot be re-executed/);
+          done();
+        });
+      });
+    })
+  );
+
+  it('should apply collation via FindOperators', {
+    metadata: { requires: { mongodb: '>= 3.4' } },
+    test: withMonitoredClient(['update', 'delete'], function (client, events, done) {
+      const locales = ['fr', 'de', 'es'];
+      const bulk = client.db().collection('coll').initializeOrderedBulkOp();
+
+      // updates
+      bulk
+        .find({ b: 1 })
+        .collation({ locale: locales[0] })
+        .updateOne({ $set: { b: 2 } });
+      bulk
+        .find({ b: 2 })
+        .collation({ locale: locales[1] })
+        .update({ $set: { b: 3 } });
+      bulk.find({ b: 3 }).collation({ locale: locales[2] }).replaceOne({ b: 2 });
+
+      // deletes
+      bulk.find({ b: 2 }).collation({ locale: locales[0] }).removeOne();
+      bulk.find({ b: 1 }).collation({ locale: locales[1] }).remove();
+
+      bulk.execute(err => {
+        expect(err).to.not.exist;
+        expect(events).to.be.an('array').with.length.at.least(1);
+        expect(events[0]).property('commandName').to.equal('update');
+        const updateCommand = events[0].command;
+        expect(updateCommand).property('updates').to.be.an('array').with.length(3);
+        updateCommand.updates.forEach((statement, idx) => {
+          expect(statement).property('collation').to.eql({ locale: locales[idx] });
+        });
+        expect(events[1]).property('commandName').to.equal('delete');
+        const deleteCommand = events[1].command;
+        expect(deleteCommand).property('deletes').to.be.an('array').with.length(2);
+        deleteCommand.deletes.forEach((statement, idx) => {
+          expect(statement).property('collation').to.eql({ locale: locales[idx] });
+        });
+        client.close(done);
+      });
+    })
+  });
+
+  it('should throw an error if raw operations are passed to bulkWrite', function () {
+    const client = this.configuration.newClient();
+    return client.connect().then(() => {
+      this.defer(() => client.close());
+
+      const coll = client.db().collection('single_bulk_write_error');
+      return coll
+        .bulkWrite([
+          { updateOne: { q: { a: 2 }, u: { $set: { a: 2 } }, upsert: true } },
+          { deleteOne: { q: { c: 1 } } }
+        ])
+        .then(
+          () => {
+            throw new Error('expected a bulk error');
+          },
+          err => {
+            expect(err).to.match(/Raw operations are not allowed/);
+          }
+        );
     });
   });
 });

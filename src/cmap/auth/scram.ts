@@ -2,11 +2,12 @@ import * as crypto from 'crypto';
 import { Binary, Document } from '../../bson';
 import { MongoError, AnyError } from '../../error';
 import { AuthProvider, AuthContext } from './auth_provider';
-import type { Callback } from '../../utils';
+import { Callback, ns } from '../../utils';
 import type { MongoCredentials } from './mongo_credentials';
 import type { HandshakeDocument } from '../connect';
 
 import { saslprep } from '../../deps';
+import { AuthMechanism } from './defaultAuthProviders';
 
 type CryptoMethod = 'sha1' | 'sha256';
 
@@ -83,7 +84,8 @@ function makeFirstMessage(
   nonce: Buffer
 ) {
   const username = cleanUsername(credentials.username);
-  const mechanism = cryptoMethod === 'sha1' ? 'SCRAM-SHA-1' : 'SCRAM-SHA-256';
+  const mechanism =
+    cryptoMethod === 'sha1' ? AuthMechanism.MONGODB_SCRAM_SHA1 : AuthMechanism.MONGODB_SCRAM_SHA256;
 
   // NOTE: This is done b/c Javascript uses UTF-16, but the server is hashing in UTF-8.
   // Since the username is not sasl-prep-d, we need to do this here.
@@ -110,7 +112,7 @@ function executeScram(cryptoMethod: CryptoMethod, authContext: AuthContext, call
   const db = credentials.source;
 
   const saslStartCmd = makeFirstMessage(cryptoMethod, credentials, nonce);
-  connection.command(`${db}.$cmd`, saslStartCmd, (_err, result) => {
+  connection.command(ns(`${db}.$cmd`), saslStartCmd, undefined, (_err, result) => {
     const err = resolveError(_err, result);
     if (err) {
       return callback(err);
@@ -181,11 +183,9 @@ function continueScramConversation(
   const clientKey = HMAC(cryptoMethod, saltedPassword, 'Client Key');
   const serverKey = HMAC(cryptoMethod, saltedPassword, 'Server Key');
   const storedKey = H(cryptoMethod, clientKey);
-  const authMessage = [
-    clientFirstMessageBare(username, nonce),
-    payload.value().toString('base64'),
-    withoutProof
-  ].join(',');
+  const authMessage = [clientFirstMessageBare(username, nonce), payload.value(), withoutProof].join(
+    ','
+  );
 
   const clientSignature = HMAC(cryptoMethod, storedKey, authMessage);
   const clientProof = `p=${xor(clientKey, clientSignature)}`;
@@ -198,7 +198,7 @@ function continueScramConversation(
     payload: new Binary(Buffer.from(clientFinal))
   };
 
-  connection.command(`${db}.$cmd`, saslContinueCmd, (_err, r) => {
+  connection.command(ns(`${db}.$cmd`), saslContinueCmd, undefined, (_err, r) => {
     const err = resolveError(_err, r);
     if (err) {
       return callback(err);
@@ -220,7 +220,7 @@ function continueScramConversation(
       payload: Buffer.alloc(0)
     };
 
-    connection.command(`${db}.$cmd`, retrySaslContinueCmd, callback);
+    connection.command(ns(`${db}.$cmd`), retrySaslContinueCmd, undefined, callback);
   });
 }
 

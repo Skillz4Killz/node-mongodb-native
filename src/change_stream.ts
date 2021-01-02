@@ -1,9 +1,7 @@
 import Denque = require('denque');
 import { EventEmitter } from 'events';
 import { MongoError, AnyError, isResumableError } from './error';
-import { Cursor } from './cursor';
 import { AggregateOperation, AggregateOptions } from './operations/aggregate';
-import { loadCollection, loadDb, loadMongoClient } from './dynamic_loaders';
 import {
   relayEvents,
   maxWireVersion,
@@ -11,17 +9,28 @@ import {
   now,
   maybePromise,
   MongoDBNamespace,
-  Callback
+  Callback,
+  getTopology
 } from './utils';
-import type { CursorOptions } from './cursor/cursor';
 import type { ReadPreference } from './read_preference';
 import type { Timestamp, Document } from './bson';
 import type { Topology } from './sdam/topology';
-import type { Writable } from 'stream';
-import type { StreamOptions } from './cursor/core_cursor';
-import type { OperationParent } from './operations/command';
-import type { CollationOptions } from './cmap/wire_protocol/write_command';
+import type { OperationParent, CollationOptions } from './operations/command';
+import { MongoClient } from './mongo_client';
+import { Db } from './db';
+import { Collection } from './collection';
+import type { Readable } from 'stream';
+import {
+  AbstractCursor,
+  AbstractCursorOptions,
+  CursorStreamOptions
+} from './cursor/abstract_cursor';
+import type { ClientSession } from './sessions';
+import { executeOperation, ExecutionResult } from './operations/execute_operation';
+
 const kResumeQueue = Symbol('resumeQueue');
+const kCursorStream = Symbol('cursorStream');
+const kClosed = Symbol('closed');
 
 const CHANGE_STREAM_OPTIONS = ['resumeAfter', 'startAfter', 'startAtOperationTime', 'fullDocument'];
 const CURSOR_OPTIONS = ['batchSize', 'maxAwaitTimeMS', 'collation', 'readPreference'].concat(
@@ -33,6 +42,12 @@ const CHANGE_DOMAIN_TYPES = {
   DATABASE: Symbol('Database'),
   CLUSTER: Symbol('Cluster')
 };
+
+const NO_RESUME_TOKEN_ERROR = new MongoError(
+  'A change stream document has been received that lacks a resume token (_id).'
+);
+const NO_CURSOR_ERROR = new MongoError('ChangeStream has no cursor');
+const CHANGESTREAM_CLOSED_ERROR = new MongoError('ChangeStream is closed');
 
 /** @public */
 export interface ResumeOptions {
@@ -50,7 +65,7 @@ export interface ResumeOptions {
 export type ResumeToken = unknown;
 
 /**
- * Represents a specific point in time on a server. Can be retrieved by using {@link Db.command}
+ * Represents a specific point in time on a server. Can be retrieved by using {@link Db#command}
  * @public
  * @remarks
  * See {@link https://docs.mongodb.com/manual/reference/method/db.runCommand/#response| Run Command Response}
@@ -162,15 +177,18 @@ interface UpdateDescription {
 export class ChangeStream extends EventEmitter {
   pipeline: Document[];
   options: ChangeStreamOptions;
-  parent: OperationParent;
+  parent: MongoClient | Db | Collection;
   namespace: MongoDBNamespace;
   type: symbol;
-  topology: Topology;
+  /** @internal */
   cursor?: ChangeStreamCursor;
-  closed: boolean;
-  pipeDestinations: Writable[] = [];
-  streamOptions?: StreamOptions;
+  streamOptions?: CursorStreamOptions;
+  /** @internal */
   [kResumeQueue]: Denque;
+  /** @internal */
+  [kCursorStream]?: Readable;
+  /** @internal */
+  [kClosed]: boolean;
 
   /** @event */
   static readonly CLOSE = 'close' as const;
@@ -192,6 +210,8 @@ export class ChangeStream extends EventEmitter {
   static readonly RESUME_TOKEN_CHANGED = 'resumeTokenChanged' as const;
 
   /**
+   * @internal
+   *
    * @param parent - The parent object that created this change stream
    * @param pipeline - An array of {@link https://docs.mongodb.com/manual/reference/operator/aggregation-pipeline/|aggregation pipeline stages} through which to pass change stream documents
    */
@@ -202,31 +222,23 @@ export class ChangeStream extends EventEmitter {
   ) {
     super();
 
-    const Collection = loadCollection();
-    const Db = loadDb();
-    const MongoClient = loadMongoClient();
-
     this.pipeline = pipeline;
     this.options = options;
 
-    this.parent = parent;
-    this.namespace = parent.s.namespace;
     if (parent instanceof Collection) {
       this.type = CHANGE_DOMAIN_TYPES.COLLECTION;
-      this.topology = parent.s.db.s.topology;
     } else if (parent instanceof Db) {
       this.type = CHANGE_DOMAIN_TYPES.DATABASE;
-      this.topology = parent.s.topology;
     } else if (parent instanceof MongoClient) {
       this.type = CHANGE_DOMAIN_TYPES.CLUSTER;
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      this.topology = parent.topology!;
     } else {
       throw new TypeError(
         'parent provided to ChangeStream constructor is not an instance of Collection, Db, or MongoClient'
       );
     }
 
+    this.parent = parent;
+    this.namespace = parent.s.namespace;
     if (!this.options.readPreference && parent.readPreference) {
       this.options.readPreference = parent.readPreference;
     }
@@ -236,21 +248,25 @@ export class ChangeStream extends EventEmitter {
     // Create contained Change Stream cursor
     this.cursor = createChangeStreamCursor(this, options);
 
-    this.closed = false;
+    this[kClosed] = false;
 
     // Listen for any `change` listeners being added to ChangeStream
-    this.on('newListener', (eventName: string) => {
+    this.on('newListener', eventName => {
       if (eventName === 'change' && this.cursor && this.listenerCount('change') === 0) {
-        this.cursor.on('data', change => processNewChange(this, change));
+        streamEvents(this, this.cursor);
       }
     });
 
-    // Listen for all `change` listeners being removed from ChangeStream
-    this.on('removeListener', (eventName: string) => {
+    this.on('removeListener', eventName => {
       if (eventName === 'change' && this.listenerCount('change') === 0 && this.cursor) {
-        this.cursor.removeAllListeners('data');
+        this[kCursorStream]?.removeAllListeners('data');
       }
     });
+  }
+
+  /** @internal */
+  get cursorStream(): Readable | undefined {
+    return this[kCursorStream];
   }
 
   /** The cached resume token that is used to resume after the most recently returned change. */
@@ -272,8 +288,7 @@ export class ChangeStream extends EventEmitter {
   next(callback?: Callback): Promise<void> | void {
     return maybePromise(callback, cb => {
       getCursor(this, (err, cursor) => {
-        if (err) return cb(err); // failed to resume, raise an error
-        if (!cursor) return cb(new MongoError('Cursor is undefined'));
+        if (err || !cursor) return cb(err); // failed to resume, raise an error
         cursor.next((error, change) => {
           if (error) {
             this[kResumeQueue].push(() => this.next(cb));
@@ -287,126 +302,82 @@ export class ChangeStream extends EventEmitter {
   }
 
   /** Is the cursor closed */
-  isClosed(): boolean {
-    return this.closed || (this.cursor?.isClosed() ?? false);
+  get closed(): boolean {
+    return this[kClosed] || (this.cursor?.closed ?? false);
   }
 
   /** Close the Change Stream */
   close(callback?: Callback): Promise<void> | void {
+    this[kClosed] = true;
+
     return maybePromise(callback, cb => {
-      if (this.closed) return cb();
+      if (!this.cursor) {
+        return cb();
+      }
 
-      // flag the change stream as explicitly closed
-      this.closed = true;
-
-      if (!this.cursor) return cb();
-
-      // Tidy up the existing cursor
       const cursor = this.cursor;
-
       return cursor.close(err => {
-        ['data', 'close', 'end', 'error'].forEach(event => cursor.removeAllListeners(event));
+        endStream(this);
         this.cursor = undefined;
-
         return cb(err);
       });
     });
   }
 
   /**
-   * This method pulls all the data out of a readable stream, and writes it to the supplied destination,
-   * automatically managing the flow so that the destination is not overwhelmed by a fast readable stream.
-   *
-   * @param destination - The destination for writing data
-   * @param options - {@link https://nodejs.org/api/stream.html#stream_readable_pipe_destination_options| NodeJS Pipe options}
-   * @throws MongoError if this.cursor is undefined
-   */
-  pipe(destination: Writable, options?: PipeOptions): Writable {
-    if (!this.pipeDestinations) {
-      this.pipeDestinations = [];
-    }
-    this.pipeDestinations.push(destination);
-    if (!this.cursor) {
-      throw new MongoError('ChangeStream has no cursor, unable to pipe');
-    }
-    return this.cursor.pipe(destination, options);
-  }
-
-  /**
-   * This method will remove the hooks set up for a previous pipe() call.
-   *
-   * @param destination - The destination for writing data
-   * @throws MongoError if this.cursor is undefined
-   */
-  unpipe(destination?: Writable): ChangeStreamCursor {
-    const destinationIndex = destination ? this.pipeDestinations.indexOf(destination) : -1;
-    if (this.pipeDestinations && destinationIndex > -1) {
-      this.pipeDestinations.splice(destinationIndex, 1);
-    }
-    if (!this.cursor) {
-      throw new MongoError('ChangeStream has no cursor, unable to unpipe');
-    }
-    return this.cursor.unpipe(destination);
-  }
-
-  /**
    * Return a modified Readable stream including a possible transform method.
    * @throws MongoError if this.cursor is undefined
    */
-  stream(options?: StreamOptions): ChangeStreamCursor {
+  stream(options?: CursorStreamOptions): Readable {
     this.streamOptions = options;
-    if (!this.cursor) {
-      throw new MongoError('ChangeStream has no cursor, unable to stream');
-    }
+    if (!this.cursor) throw NO_CURSOR_ERROR;
     return this.cursor.stream(options);
   }
 
   /**
-   * This method will cause a stream in flowing mode to stop emitting data events. Any data that becomes available will remain in the internal buffer.
-   * @throws MongoError if this.cursor is undefined
+   * Try to get the next available document from the Change Stream's cursor or `null` if an empty batch is returned
    */
-  pause(): ChangeStreamCursor {
-    if (!this.cursor) {
-      throw new MongoError('ChangeStream has no cursor, unable to pause');
-    }
-    return this.cursor.pause();
-  }
-
-  /**
-   * This method will cause the readable stream to resume emitting data events.
-   * @throws MongoError if this.cursor is undefined
-   */
-  resume(): ChangeStreamCursor {
-    if (!this.cursor) {
-      throw new MongoError('ChangeStream has no cursor, unable to resume');
-    }
-    return this.cursor.resume();
+  tryNext(): Promise<Document | null>;
+  tryNext(callback: Callback<Document | null>): void;
+  tryNext(callback?: Callback<Document | null>): Promise<Document | null> | void {
+    return maybePromise(callback, cb => {
+      getCursor(this, (err, cursor) => {
+        if (err || !cursor) return cb(err); // failed to resume, raise an error
+        return cursor.tryNext(cb);
+      });
+    });
   }
 }
 
-/** @public */
-export interface ChangeStreamCursorOptions extends CursorOptions {
+/** @internal */
+export interface ChangeStreamCursorOptions extends AbstractCursorOptions {
   startAtOperationTime?: OperationTime;
   resumeAfter?: ResumeToken;
   startAfter?: boolean;
 }
 
 /** @internal */
-export class ChangeStreamCursor extends Cursor<AggregateOperation, ChangeStreamCursorOptions> {
+export class ChangeStreamCursor extends AbstractCursor {
   _resumeToken: ResumeToken;
   startAtOperationTime?: OperationTime;
   hasReceived?: boolean;
   resumeAfter: ResumeToken;
   startAfter: ResumeToken;
+  options: ChangeStreamCursorOptions;
+
+  postBatchResumeToken?: ResumeToken;
+  pipeline: Document[];
 
   constructor(
     topology: Topology,
-    operation: AggregateOperation,
-    options: ChangeStreamCursorOptions
+    namespace: MongoDBNamespace,
+    pipeline: Document[] = [],
+    options: ChangeStreamCursorOptions = {}
   ) {
-    super(topology, operation, options);
+    super(topology, namespace, options);
 
-    options = options || {};
+    this.pipeline = pipeline;
+    this.options = options;
     this._resumeToken = null;
     this.startAtOperationTime = options.startAtOperationTime;
 
@@ -471,18 +442,34 @@ export class ChangeStreamCursor extends Cursor<AggregateOperation, ChangeStreamC
     }
   }
 
-  _initializeCursor(callback: Callback): void {
-    super._initializeCursor((err, response) => {
+  clone(): ChangeStreamCursor {
+    return new ChangeStreamCursor(this.topology, this.namespace, this.pipeline, {
+      ...this.cursorOptions
+    });
+  }
+
+  _initialize(session: ClientSession, callback: Callback<ExecutionResult>): void {
+    const aggregateOperation = new AggregateOperation(
+      { s: { namespace: this.namespace } },
+      this.pipeline,
+      {
+        ...this.cursorOptions,
+        ...this.options,
+        session
+      }
+    );
+
+    executeOperation(this.topology, aggregateOperation, (err, response) => {
       if (err || response == null) {
-        callback(err, response);
-        return;
+        return callback(err);
       }
 
+      const server = aggregateOperation.server;
       if (
         this.startAtOperationTime == null &&
         this.resumeAfter == null &&
         this.startAfter == null &&
-        maxWireVersion(this.server) >= 7
+        maxWireVersion(server) >= 7
       ) {
         this.startAtOperationTime = response.operationTime;
       }
@@ -491,15 +478,16 @@ export class ChangeStreamCursor extends Cursor<AggregateOperation, ChangeStreamC
 
       this.emit('init', response);
       this.emit('response');
-      callback(err, response);
+
+      // TODO: NODE-2882
+      callback(undefined, { server, session, response });
     });
   }
 
-  _getMore(callback: Callback): void {
-    super._getMore((err, response) => {
+  _getMore(batchSize: number, callback: Callback): void {
+    super._getMore(batchSize, (err, response) => {
       if (err) {
-        callback(err);
-        return;
+        return callback(err);
       }
 
       this._processBatch('nextBatch', response);
@@ -511,43 +499,35 @@ export class ChangeStreamCursor extends Cursor<AggregateOperation, ChangeStreamC
   }
 }
 
-/** @internal Create a new change stream cursor based on self's configuration */
+/**
+ * Create a new change stream cursor based on self's configuration
+ * @internal
+ */
 function createChangeStreamCursor(
-  self: ChangeStream,
+  changeStream: ChangeStream,
   options: ChangeStreamOptions
 ): ChangeStreamCursor {
   const changeStreamStageOptions: Document = { fullDocument: options.fullDocument || 'default' };
   applyKnownOptions(changeStreamStageOptions, options, CHANGE_STREAM_OPTIONS);
-  if (self.type === CHANGE_DOMAIN_TYPES.CLUSTER) {
+  if (changeStream.type === CHANGE_DOMAIN_TYPES.CLUSTER) {
     changeStreamStageOptions.allChangesForCluster = true;
   }
 
-  const pipeline = [{ $changeStream: changeStreamStageOptions } as Document].concat(self.pipeline);
-  const cursorOptions = applyKnownOptions({}, options, CURSOR_OPTIONS);
+  const pipeline = [{ $changeStream: changeStreamStageOptions } as Document].concat(
+    changeStream.pipeline
+  );
 
+  const cursorOptions = applyKnownOptions({}, options, CURSOR_OPTIONS);
   const changeStreamCursor = new ChangeStreamCursor(
-    self.topology,
-    new AggregateOperation(self.parent, pipeline, options),
+    getTopology(changeStream.parent),
+    changeStream.namespace,
+    pipeline,
     cursorOptions
   );
 
-  relayEvents(changeStreamCursor, self, ['resumeTokenChanged', 'end', 'close']);
-
-  if (self.listenerCount(ChangeStream.CHANGE) > 0) {
-    changeStreamCursor.on(ChangeStreamCursor.DATA, function (change) {
-      processNewChange(self, change);
-    });
-  }
-
-  changeStreamCursor.on(ChangeStream.ERROR, function (error) {
-    processError(self, error);
-  });
-
-  if (self.pipeDestinations) {
-    const cursorStream = changeStreamCursor.stream(self.streamOptions);
-    for (const pipeDestination of self.pipeDestinations) {
-      cursorStream.pipe(pipeDestination);
-    }
+  relayEvents(changeStreamCursor, changeStream, ['resumeTokenChanged', 'end', 'close']);
+  if (changeStream.listenerCount(ChangeStream.CHANGE) > 0) {
+    streamEvents(changeStream, changeStreamCursor);
   }
 
   return changeStreamCursor;
@@ -595,28 +575,48 @@ function waitForTopologyConnected(
   }, 500); // this is an arbitrary wait time to allow SDAM to transition
 }
 
+function closeWithError(changeStream: ChangeStream, error: AnyError, callback?: Callback): void {
+  if (!callback) {
+    changeStream.emit(ChangeStream.ERROR, error);
+  }
+
+  changeStream.close(() => callback && callback(error));
+}
+
+function streamEvents(changeStream: ChangeStream, cursor: ChangeStreamCursor): void {
+  const stream = changeStream[kCursorStream] || cursor.stream();
+  changeStream[kCursorStream] = stream;
+  stream.on('data', change => processNewChange(changeStream, change));
+  stream.on('error', error => processError(changeStream, error));
+}
+
+function endStream(changeStream: ChangeStream): void {
+  const cursorStream = changeStream[kCursorStream];
+  if (cursorStream) {
+    ['data', 'close', 'end', 'error'].forEach(event => cursorStream.removeAllListeners(event));
+    cursorStream.destroy();
+  }
+
+  changeStream[kCursorStream] = undefined;
+}
+
 function processNewChange(
   changeStream: ChangeStream,
   change: ChangeStreamDocument,
   callback?: Callback
 ) {
-  // a null change means the cursor has been notified, implicitly closing the change stream
-  if (change == null) {
-    changeStream.closed = true;
-  }
-
-  if (changeStream.closed) {
-    if (callback) callback(new MongoError('ChangeStream is closed'));
+  if (changeStream[kClosed]) {
+    if (callback) callback(CHANGESTREAM_CLOSED_ERROR);
     return;
   }
 
-  if (change && !change._id) {
-    const noResumeTokenError = new Error(
-      'A change stream document has been received that lacks a resume token (_id).'
-    );
+  // a null change means the cursor has been notified, implicitly closing the change stream
+  if (change == null) {
+    return closeWithError(changeStream, CHANGESTREAM_CLOSED_ERROR, callback);
+  }
 
-    if (!callback) return changeStream.emit(ChangeStream.ERROR, noResumeTokenError);
-    return callback(noResumeTokenError);
+  if (change && !change._id) {
+    return closeWithError(changeStream, NO_RESUME_TOKEN_ERROR, callback);
   }
 
   // cache the resume token
@@ -631,13 +631,12 @@ function processNewChange(
   return callback(undefined, change);
 }
 
-function processError(changeStream: ChangeStream, error?: AnyError, callback?: Callback) {
-  const topology = changeStream.topology;
+function processError(changeStream: ChangeStream, error: AnyError, callback?: Callback) {
   const cursor = changeStream.cursor;
 
   // If the change stream has been closed explicitly, do not process error.
-  if (changeStream.closed) {
-    if (callback) callback(new MongoError('ChangeStream is closed'));
+  if (changeStream[kClosed]) {
+    if (callback) callback(CHANGESTREAM_CLOSED_ERROR);
     return;
   }
 
@@ -651,26 +650,21 @@ function processError(changeStream: ChangeStream, error?: AnyError, callback?: C
   function unresumableError(err: AnyError) {
     if (!callback) {
       changeStream.emit(ChangeStream.ERROR, err);
-      changeStream.emit(ChangeStream.CLOSE);
     }
-    processResumeQueue(changeStream, err);
-    changeStream.closed = true;
+
+    changeStream.close(() => processResumeQueue(changeStream, err));
   }
 
   if (cursor && isResumableError(error as MongoError, maxWireVersion(cursor.server))) {
     changeStream.cursor = undefined;
 
     // stop listening to all events from old cursor
-    [
-      ChangeStreamCursor.DATA,
-      ChangeStreamCursor.CLOSE,
-      ChangeStreamCursor.END,
-      ChangeStreamCursor.ERROR
-    ].forEach(event => cursor.removeAllListeners(event));
+    endStream(changeStream);
 
     // close internal cursor, ignore errors
     cursor.close();
 
+    const topology = getTopology(changeStream.parent);
     waitForTopologyConnected(topology, { readPreference: cursor.readPreference }, err => {
       // if the topology can't reconnect, close the stream
       if (err) return unresumableError(err);
@@ -691,8 +685,8 @@ function processError(changeStream: ChangeStream, error?: AnyError, callback?: C
     return;
   }
 
-  if (!callback) return changeStream.emit(ChangeStream.ERROR, error);
-  return callback(error);
+  // if initial error wasn't resumable, raise an error and close the change stream
+  return closeWithError(changeStream, error, callback);
 }
 
 /**
@@ -701,8 +695,8 @@ function processError(changeStream: ChangeStream, error?: AnyError, callback?: C
  * @param changeStream - the parent ChangeStream
  */
 function getCursor(changeStream: ChangeStream, callback: Callback<ChangeStreamCursor>) {
-  if (changeStream.isClosed()) {
-    callback(new MongoError('ChangeStream is closed.'));
+  if (changeStream[kClosed]) {
+    callback(CHANGESTREAM_CLOSED_ERROR);
     return;
   }
 
@@ -725,9 +719,15 @@ function getCursor(changeStream: ChangeStream, callback: Callback<ChangeStreamCu
 function processResumeQueue(changeStream: ChangeStream, err?: Error) {
   while (changeStream[kResumeQueue].length) {
     const request = changeStream[kResumeQueue].pop();
-    if (changeStream.isClosed() && !err) {
-      request(new MongoError('Change Stream is not open.'));
-      return;
+    if (!err) {
+      if (changeStream[kClosed]) {
+        request(CHANGESTREAM_CLOSED_ERROR);
+        return;
+      }
+      if (!changeStream.cursor) {
+        request(NO_CURSOR_ERROR);
+        return;
+      }
     }
     request(err, changeStream.cursor);
   }

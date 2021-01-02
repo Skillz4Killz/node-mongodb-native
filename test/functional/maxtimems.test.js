@@ -3,7 +3,7 @@ var test = require('./shared').assert;
 const { expect } = require('chai');
 var setupDatabase = require('./shared').setupDatabase;
 
-describe('Unicode', function () {
+describe('MaxTimeMS', function () {
   before(function () {
     return setupDatabase(this.configuration);
   });
@@ -21,7 +21,7 @@ describe('Unicode', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         var col = db.collection('max_time_ms');
@@ -30,7 +30,7 @@ describe('Unicode', function () {
         var docs_1 = [{ agg_pipe: 1 }];
 
         // Simple insert
-        col.insert(docs_1, { w: 1 }, function (err) {
+        col.insert(docs_1, { writeConcern: { w: 1 } }, function (err) {
           expect(err).to.not.exist;
 
           // Execute a find command
@@ -59,7 +59,7 @@ describe('Unicode', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         var col = db.collection('max_time_ms_2');
@@ -68,7 +68,7 @@ describe('Unicode', function () {
         var docs_1 = [{ agg_pipe: 1 }];
 
         // Simple insert
-        col.insert(docs_1, { w: 1 }, function (err) {
+        col.insert(docs_1, { writeConcern: { w: 1 } }, function (err) {
           expect(err).to.not.exist;
 
           // Execute a find command
@@ -96,7 +96,7 @@ describe('Unicode', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         var col = db.collection('max_time_ms_5');
@@ -105,7 +105,7 @@ describe('Unicode', function () {
         var docs_1 = [{ agg_pipe: 10 }];
 
         // Simple insert
-        col.insert(docs_1, { w: 1 }, function (err) {
+        col.insert(docs_1, { writeConcern: { w: 1 } }, function (err) {
           expect(err).to.not.exist;
 
           db.admin().command(

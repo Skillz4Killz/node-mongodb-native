@@ -3,6 +3,12 @@ export type W = number | 'majority';
 
 /** @public */
 export interface WriteConcernOptions {
+  /** Write Concern as an object */
+  writeConcern?: WriteConcern | WriteConcernSettings;
+}
+
+/** @public */
+export interface WriteConcernSettings {
   /** The write concern */
   w?: W;
   /** The write concern timeout */
@@ -15,11 +21,9 @@ export interface WriteConcernOptions {
   journal?: boolean;
   /** The file sync write concern */
   fsync?: boolean | 1;
-  /** Write Concern as an object */
-  writeConcern?: WriteConcernOptions | WriteConcern | W;
 }
 
-export const writeConcernKeys = ['w', 'j', 'wtimeout', 'fsync'];
+export const WRITE_CONCERN_KEYS = ['w', 'wtimeout', 'j', 'journal', 'fsync'];
 
 /**
  * A MongoDB WriteConcern, which describes the level of acknowledgement
@@ -29,28 +33,29 @@ export const writeConcernKeys = ['w', 'j', 'wtimeout', 'fsync'];
  * @see https://docs.mongodb.com/manual/reference/write-concern/
  */
 export class WriteConcern {
-  /** The write concern */
+  /** request acknowledgment that the write operation has propagated to a specified number of mongod instances or to mongod instances with specified tags. */
   w?: W;
-  /** The write concern timeout */
+  /** specify a time limit to prevent write operations from blocking indefinitely */
   wtimeout?: number;
-  /** The journal write concern */
+  /** request acknowledgment that the write operation has been written to the on-disk journal */
   j?: boolean;
-  /** The file sync write concern */
+  /** equivalent to the j option */
   fsync?: boolean | 1;
 
-  /** Constructs a WriteConcern from the write concern properties. */
-  constructor(
-    /** The write concern */
-    w?: W,
-    /** The write concern timeout */
-    wtimeout?: number,
-    /** The journal write concern */
-    j?: boolean,
-    /** The file sync write concern */
-    fsync?: boolean | 1
-  ) {
+  /**
+   * Constructs a WriteConcern from the write concern properties.
+   * @param w - request acknowledgment that the write operation has propagated to a specified number of mongod instances or to mongod instances with specified tags.
+   * @param wtimeout - specify a time limit to prevent write operations from blocking indefinitely
+   * @param j - request acknowledgment that the write operation has been written to the on-disk journal
+   * @param fsync - equivalent to the j option
+   */
+  constructor(w?: W, wtimeout?: number, j?: boolean, fsync?: boolean | 1) {
     if (w != null) {
-      this.w = w;
+      if (!Number.isNaN(Number(w))) {
+        this.w = Number(w);
+      } else {
+        this.w = w;
+      }
     }
     if (wtimeout != null) {
       this.wtimeout = wtimeout;
@@ -65,19 +70,17 @@ export class WriteConcern {
 
   /** Construct a WriteConcern given an options object. */
   static fromOptions(
-    options?: WriteConcernOptions | WriteConcern | W,
+    options?: WriteConcernOptions | WriteConcern,
     inherit?: WriteConcernOptions | WriteConcern
   ): WriteConcern | undefined {
-    const { fromOptions } = WriteConcern;
     if (typeof options === 'undefined') return undefined;
-    if (typeof options === 'number') return fromOptions({ ...inherit, w: options });
-    if (typeof options === 'string') return fromOptions({ ...inherit, w: options });
-    if (options instanceof WriteConcern) return fromOptions({ ...inherit, ...options });
-    if (options.writeConcern) {
-      const { writeConcern, ...viable } = { ...inherit, ...options };
-      return fromOptions(writeConcern, viable);
-    }
-    const { w, wtimeout, j, fsync, journal, wtimeoutMS } = { ...inherit, ...options };
+    inherit = inherit ?? {};
+    const opts: WriteConcern | WriteConcernSettings | undefined =
+      options instanceof WriteConcern ? options : options.writeConcern;
+    const parentOpts: WriteConcern | WriteConcernSettings | undefined =
+      inherit instanceof WriteConcern ? inherit : inherit.writeConcern;
+
+    const { w, wtimeout, j, fsync, journal, wtimeoutMS } = { ...parentOpts, ...opts };
     if (
       w != null ||
       wtimeout != null ||

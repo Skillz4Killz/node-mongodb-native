@@ -16,7 +16,10 @@ export interface TopologyDescriptionOptions {
   localThresholdMS?: number;
 }
 
-/** @public Representation of a deployment of servers */
+/**
+ * Representation of a deployment of servers
+ * @public
+ */
 export class TopologyDescription {
   type: TopologyType;
   setName?: string;
@@ -43,7 +46,7 @@ export class TopologyDescription {
     commonWireVersion?: number,
     options?: TopologyDescriptionOptions
   ) {
-    options = options || {};
+    options = options ?? {};
 
     // TODO: consider assigning all these values to a temporary value `s` which
     //       we use `Object.freeze` on, ensuring the internal state of this type

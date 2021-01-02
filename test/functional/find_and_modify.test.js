@@ -1,7 +1,7 @@
 'use strict';
 var f = require('util').format;
 var test = require('./shared').assert;
-var setupDatabase = require('./shared').setupDatabase;
+const { setupDatabase, withClient } = require(`./shared`);
 const { expect } = require('chai');
 
 describe('Find and Modify', function () {
@@ -33,23 +33,18 @@ describe('Find and Modify', function () {
       });
 
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         expect(err).to.not.exist;
 
         var collection = db.collection('findAndModifyTEST');
         // Execute findOneAndUpdate
-        collection.findOneAndUpdate({}, { $set: { a: 1 } }, { fsync: 1 }, function (err) {
-          expect(err).to.not.exist;
-          test.deepEqual({ fsync: 1 }, started[0].command.writeConcern);
-
-          // Cleanup
-          started = [];
-          succeeded = [];
-
-          // Execute findOneAndReplace
-          collection.findOneAndReplace({}, { b: 1 }, { fsync: 1 }, function (err) {
+        collection.findOneAndUpdate(
+          {},
+          { $set: { a: 1 } },
+          { writeConcern: { fsync: 1 } },
+          function (err) {
             expect(err).to.not.exist;
             test.deepEqual({ fsync: 1 }, started[0].command.writeConcern);
 
@@ -58,15 +53,27 @@ describe('Find and Modify', function () {
             succeeded = [];
 
             // Execute findOneAndReplace
-            collection.findOneAndDelete({}, { fsync: 1 }, function (err) {
+            collection.findOneAndReplace({}, { b: 1 }, { writeConcern: { fsync: 1 } }, function (
+              err
+            ) {
               expect(err).to.not.exist;
               test.deepEqual({ fsync: 1 }, started[0].command.writeConcern);
 
-              listener.uninstrument();
-              client.close(done);
+              // Cleanup
+              started = [];
+              succeeded = [];
+
+              // Execute findOneAndReplace
+              collection.findOneAndDelete({}, { writeConcern: { fsync: 1 } }, function (err) {
+                expect(err).to.not.exist;
+                test.deepEqual({ fsync: 1 }, started[0].command.writeConcern);
+
+                listener.uninstrument();
+                client.close(done);
+              });
             });
-          });
-        });
+          }
+        );
       });
     }
   });
@@ -95,12 +102,12 @@ describe('Find and Modify', function () {
       });
 
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         expect(err).to.not.exist;
 
-        var collection = db.collection('findAndModifyTEST', { fsync: 1 });
+        var collection = db.collection('findAndModifyTEST', { writeConcern: { fsync: 1 } });
         // Execute findOneAndUpdate
         collection.findOneAndUpdate({}, { $set: { a: 1 } }, function (err) {
           expect(err).to.not.exist;
@@ -207,7 +214,7 @@ describe('Find and Modify', function () {
 
     test: function (done) {
       const configuration = this.configuration;
-      const client = configuration.newClient({ readPreference: 'secondary' }, { poolSize: 1 });
+      const client = configuration.newClient({ readPreference: 'secondary' }, { maxPoolSize: 1 });
       client.connect((err, client) => {
         const db = client.db(configuration.db);
         expect(err).to.not.exist;
@@ -221,5 +228,17 @@ describe('Find and Modify', function () {
         });
       });
     }
+  });
+
+  it('should not allow atomic operators for findOneAndReplace', {
+    metadata: { requires: { topology: 'single' } },
+    test: withClient((client, done) => {
+      const db = client.db('fakeDb');
+      const collection = db.collection('test');
+      expect(() => {
+        collection.findOneAndReplace({ a: 1 }, { $set: { a: 14 } });
+      }).to.throw(/must not contain atomic operators/);
+      done();
+    })
   });
 });

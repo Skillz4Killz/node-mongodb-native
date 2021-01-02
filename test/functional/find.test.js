@@ -20,18 +20,17 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
+        expect(err).to.not.exist;
+
         var db = client.db(configuration.db);
         db.collection('test_find_simple', function (err, collection) {
-          var doc1 = null;
+          const docs = [{ a: 2 }, { b: 3 }];
 
           // Insert some test documents
-          collection.insert([{ a: 2 }, { b: 3 }], configuration.writeConcernMax(), function (
-            err,
-            r
-          ) {
-            doc1 = r.ops[0];
+          collection.insert(docs, configuration.writeConcernMax(), err => {
+            expect(err).to.not.exist;
 
             // Ensure correct insertion testing via the cursor and the count function
             collection.find().toArray(function (err, documents) {
@@ -39,12 +38,15 @@ describe('Find', function () {
               test.equal(2, documents.length);
 
               collection.count(function (err, count) {
+                expect(err).to.not.exist;
                 test.equal(2, count);
 
                 // Fetch values by selection
-                collection.find({ a: doc1.a }).toArray(function (err, documents) {
+                collection.find({ a: docs[0].a }).toArray(function (err, documents) {
+                  expect(err).to.not.exist;
+
                   test.equal(1, documents.length);
-                  test.equal(doc1.a, documents[0].a);
+                  test.equal(docs[0].a, documents[0].a);
                   // Let's close the db
                   client.close(done);
                 });
@@ -66,20 +68,17 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('test_find_simple_chained', function (err) {
           expect(err).to.not.exist;
           db.collection('test_find_simple_chained', function (err, collection) {
-            var doc1 = null;
+            const docs = [{ a: 2 }, { b: 3 }];
 
             // Insert some test documents
-            collection.insert([{ a: 2 }, { b: 3 }], configuration.writeConcernMax(), function (
-              err,
-              r
-            ) {
-              doc1 = r.ops[0];
+            collection.insert(docs, configuration.writeConcernMax(), err => {
+              expect(err).to.not.exist;
 
               // Ensure correct insertion testing via the cursor and the count function
               collection.find().toArray(function (err, documents) {
@@ -89,9 +88,9 @@ describe('Find', function () {
                   test.equal(2, count);
 
                   // Fetch values by selection
-                  collection.find({ a: doc1.a }).toArray(function (err, documents) {
+                  collection.find({ a: docs[0].a }).toArray(function (err, documents) {
                     test.equal(1, documents.length);
-                    test.equal(doc1.a, documents[0].a);
+                    test.equal(docs[0].a, documents[0].a);
                     // Let's close the db
                     client.close(done);
                   });
@@ -114,90 +113,86 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         var collection = db.collection('test_find_advanced');
+        const docs = [{ a: 1 }, { a: 2 }, { b: 3 }];
 
         // Insert some test documents
-        collection.insert(
-          [{ a: 1 }, { a: 2 }, { b: 3 }],
-          configuration.writeConcernMax(),
-          function (err, r) {
-            var doc1 = r.ops[0],
-              doc2 = r.ops[1];
+        collection.insert(docs, configuration.writeConcernMax(), function (err) {
+          expect(err).to.not.exist;
 
-            // Locate by less than
-            collection.find({ a: { $lt: 10 } }).toArray(function (err, documents) {
-              test.equal(2, documents.length);
-              // Check that the correct documents are returned
-              var results = [];
-              // Check that we have all the results we want
-              documents.forEach(function (doc) {
-                if (doc.a === 1 || doc.a === 2) results.push(1);
-              });
-              test.equal(2, results.length);
+          // Locate by less than
+          collection.find({ a: { $lt: 10 } }).toArray(function (err, documents) {
+            test.equal(2, documents.length);
+            // Check that the correct documents are returned
+            var results = [];
+            // Check that we have all the results we want
+            documents.forEach(function (doc) {
+              if (doc.a === 1 || doc.a === 2) results.push(1);
+            });
+            test.equal(2, results.length);
 
-              // Locate by greater than
-              collection.find({ a: { $gt: 1 } }).toArray(function (err, documents) {
+            // Locate by greater than
+            collection.find({ a: { $gt: 1 } }).toArray(function (err, documents) {
+              test.equal(1, documents.length);
+              test.equal(2, documents[0].a);
+
+              // Locate by less than or equal to
+              collection.find({ a: { $lte: 1 } }).toArray(function (err, documents) {
                 test.equal(1, documents.length);
-                test.equal(2, documents[0].a);
+                test.equal(1, documents[0].a);
 
-                // Locate by less than or equal to
-                collection.find({ a: { $lte: 1 } }).toArray(function (err, documents) {
-                  test.equal(1, documents.length);
-                  test.equal(1, documents[0].a);
+                // Locate by greater than or equal to
+                collection.find({ a: { $gte: 1 } }).toArray(function (err, documents) {
+                  test.equal(2, documents.length);
+                  // Check that the correct documents are returned
+                  var results = [];
+                  // Check that we have all the results we want
+                  documents.forEach(function (doc) {
+                    if (doc.a === 1 || doc.a === 2) results.push(1);
+                  });
+                  test.equal(2, results.length);
 
-                  // Locate by greater than or equal to
-                  collection.find({ a: { $gte: 1 } }).toArray(function (err, documents) {
-                    test.equal(2, documents.length);
-                    // Check that the correct documents are returned
-                    var results = [];
-                    // Check that we have all the results we want
-                    documents.forEach(function (doc) {
-                      if (doc.a === 1 || doc.a === 2) results.push(1);
-                    });
-                    test.equal(2, results.length);
+                  // Locate by between
+                  collection.find({ a: { $gt: 1, $lt: 3 } }).toArray(function (err, documents) {
+                    test.equal(1, documents.length);
+                    test.equal(2, documents[0].a);
 
-                    // Locate by between
-                    collection.find({ a: { $gt: 1, $lt: 3 } }).toArray(function (err, documents) {
-                      test.equal(1, documents.length);
-                      test.equal(2, documents[0].a);
-
-                      // Locate in clause
-                      collection.find({ a: { $in: [1, 2] } }).toArray(function (err, documents) {
-                        test.equal(2, documents.length);
-                        // Check that the correct documents are returned
-                        var results = [];
-                        // Check that we have all the results we want
-                        documents.forEach(function (doc) {
-                          if (doc.a === 1 || doc.a === 2) results.push(1);
-                        });
-                        test.equal(2, results.length);
-
-                        // Locate in _id clause
-                        collection
-                          .find({ _id: { $in: [doc1['_id'], doc2['_id']] } })
-                          .toArray(function (err, documents) {
-                            test.equal(2, documents.length);
-                            // Check that the correct documents are returned
-                            var results = [];
-                            // Check that we have all the results we want
-                            documents.forEach(function (doc) {
-                              if (doc.a === 1 || doc.a === 2) results.push(1);
-                            });
-                            test.equal(2, results.length);
-                            // Let's close the db
-                            client.close(done);
-                          });
+                    // Locate in clause
+                    collection.find({ a: { $in: [1, 2] } }).toArray(function (err, documents) {
+                      test.equal(2, documents.length);
+                      // Check that the correct documents are returned
+                      var results = [];
+                      // Check that we have all the results we want
+                      documents.forEach(function (doc) {
+                        if (doc.a === 1 || doc.a === 2) results.push(1);
                       });
+                      test.equal(2, results.length);
+
+                      // Locate in _id clause
+                      collection
+                        .find({ _id: { $in: [docs[0]['_id'], docs[1]['_id']] } })
+                        .toArray(function (err, documents) {
+                          test.equal(2, documents.length);
+                          // Check that the correct documents are returned
+                          var results = [];
+                          // Check that we have all the results we want
+                          documents.forEach(function (doc) {
+                            if (doc.a === 1 || doc.a === 2) results.push(1);
+                          });
+                          test.equal(2, results.length);
+                          // Let's close the db
+                          client.close(done);
+                        });
                     });
                   });
                 });
               });
             });
-          }
-        );
+          });
+        });
       });
     }
   });
@@ -212,7 +207,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('test_find_sorting', function (err) {
@@ -342,7 +337,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('test_find_limits', function (err) {
@@ -400,7 +395,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('test_find_non_quoted_values', function (err) {
@@ -438,7 +433,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('test_find_embedded_document', function (err) {
@@ -487,7 +482,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('test_find_one_no_records', function (err) {
@@ -515,7 +510,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('test_where', function (err, collection) {
@@ -558,7 +553,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('test_hint', function (err, collection) {
@@ -624,18 +619,16 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect((err, client) => {
+        expect(err).to.not.exist;
         var db = client.db(configuration.db);
         db.createCollection('test_find_by_oid', (err, collection) => {
           collection.insertOne({ hello: 'mike' }, configuration.writeConcernMax(), (err, r) => {
-            var docs = r.ops[0];
-            test.ok(
-              docs._id instanceof ObjectId ||
-                Object.prototype.toString.call(docs._id) === '[object ObjectId]'
-            );
+            expect(err).to.not.exist;
+            expect(r).property('insertedId').to.exist;
 
-            collection.findOne({ _id: docs._id }, (err, doc) => {
+            collection.findOne({ _id: r.insertedId }, (err, doc) => {
               test.equal('mike', doc.hello);
 
               var id = doc._id.toString();
@@ -658,7 +651,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('test_find_by_oid_with_subdocs', function (err, collection) {
@@ -673,14 +666,18 @@ describe('Find', function () {
 
           collection.insert(doc, configuration.writeConcernMax(), function (err) {
             expect(err).to.not.exist;
-            collection.findOne({ _id: doc._id }, { w: 1, fields: undefined }, function (err, doc) {
-              expect(err).to.not.exist;
-              test.equal(2, doc.comments.length);
-              test.equal('number 1', doc.comments[0].title);
-              test.equal('number 2', doc.comments[1].title);
+            collection.findOne(
+              { _id: doc._id },
+              { writeConcern: { w: 1 }, projection: undefined },
+              function (err, doc) {
+                expect(err).to.not.exist;
+                test.equal(2, doc.comments.length);
+                test.equal('number 1', doc.comments[0].title);
+                test.equal('number 2', doc.comments[1].title);
 
-              client.close(done);
-            });
+                client.close(done);
+              }
+            );
           });
         });
       });
@@ -695,8 +692,7 @@ describe('Find', function () {
     test: function (done) {
       var configuration = this.configuration;
       var p_client = configuration.newClient(configuration.writeConcernMax(), {
-        poolSize: 1,
-        auto_reconnect: false
+        maxPoolSize: 1
       });
 
       p_client.connect(function (err, client) {
@@ -730,7 +726,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('test_find_one_error_handling', function (err, collection) {
@@ -759,7 +755,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('test_field_select_with_options', function (err) {
@@ -802,7 +798,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('test_find_and_modify_a_document_1', function (err, collection) {
@@ -870,11 +866,11 @@ describe('Find', function () {
                                       { a: 100 },
                                       [],
                                       { $set: { b: 5 } },
-                                      { new: true, fields: { b: 1 } },
+                                      { new: true, projection: { b: 1 } },
                                       function (err, updated_doc) {
                                         test.equal(2, Object.keys(updated_doc.value).length);
                                         test.equal(
-                                          r.ops[0]['_id'].toHexString(),
+                                          r.insertedIds[0].toHexString(),
                                           updated_doc.value._id.toHexString()
                                         );
                                         test.equal(5, updated_doc.value.b);
@@ -910,7 +906,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('test_find_and_modify_a_document_2', function (err, collection) {
@@ -923,7 +919,7 @@ describe('Find', function () {
               { a: 1 },
               [['a', 1]],
               { $set: { b: 3 } },
-              { new: true, fields: { a: 1 } },
+              { new: true, projection: { a: 1 } },
               function (err, updated_doc) {
                 test.equal(2, Object.keys(updated_doc.value).length);
                 test.equal(1, updated_doc.value.a);
@@ -943,7 +939,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('shouldCorrectlyExecuteFindOneWithAnInSearchTag', function (
@@ -961,14 +957,14 @@ describe('Find', function () {
             configuration.writeConcernMax(),
             function (err, r) {
               // Fetch the id
-              var id = r.ops[0]._id;
+              var id = r.insertedIds[0];
 
               collection.update(
                 { _id: id },
                 { $inc: { 'meta.visitors': 1 } },
                 configuration.writeConcernMax(),
                 function (err, r) {
-                  test.equal(1, r.result.n);
+                  expect(r).property('matchedCount').to.equal(1);
                   expect(err).to.not.exist;
 
                   collection.findOne({ _id: id }, function (err, item) {
@@ -994,13 +990,15 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         expect(err).to.not.exist;
         var db = client.db(configuration.db);
         db.createCollection('FindAndModifyDuplicateKeyError', function (err, collection) {
           expect(err).to.not.exist;
-          collection.ensureIndex(['name', 1], { unique: true, w: 1 }, function (err) {
+          collection.ensureIndex(['name', 1], { unique: true, writeConcern: { w: 1 } }, function (
+            err
+          ) {
             expect(err).to.not.exist;
             // Test return new document on change
             collection.insert(
@@ -1035,7 +1033,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('AttemptToFindAndModifyNonExistingDocument', function (
@@ -1066,7 +1064,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('skipAndLimitOnFindWithToArray', function (err, collection) {
@@ -1099,7 +1097,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('skipAndNegativeLimitOnFindWithToArray', function (err, collection) {
@@ -1122,25 +1120,6 @@ describe('Find', function () {
                 });
             }
           );
-        });
-      });
-    }
-  });
-
-  it('Should correctly pass timeout options to cursor noCursorTimeout', {
-    metadata: {
-      requires: { topology: ['single', 'replicaset', 'sharded', 'ssl', 'heap', 'wiredtiger'] }
-    },
-
-    test: function (done) {
-      var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
-      client.connect(function (err, client) {
-        var db = client.db(configuration.db);
-        db.createCollection('timeoutFalse', function (err, collection) {
-          const cursor = collection.find({}, {});
-          test.ok(!cursor.cmd.noCursorTimeout);
-          client.close(done);
         });
       });
     }
@@ -1173,8 +1152,7 @@ describe('Find', function () {
     test: function (done) {
       var configuration = this.configuration;
       var p_client = configuration.newClient(configuration.writeConcernMax(), {
-        poolSize: 1,
-        auto_reconnect: false
+        maxPoolSize: 1
       });
 
       p_client.connect(function (err, client) {
@@ -1216,7 +1194,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         expect(err).to.not.exist;
         var db = client.db(configuration.db);
@@ -1226,33 +1204,37 @@ describe('Find', function () {
         ) {
           expect(err).to.not.exist;
           // Set up an index to force duplicate index erro
-          collection.ensureIndex([['failIndex', 1]], { unique: true, w: 1 }, function (err) {
-            expect(err).to.not.exist;
+          collection.ensureIndex(
+            [['failIndex', 1]],
+            { unique: true, writeConcern: { w: 1 } },
+            function (err) {
+              expect(err).to.not.exist;
 
-            // Setup a new document
-            collection.insert(
-              { a: 2, b: 2, failIndex: 2 },
-              configuration.writeConcernMax(),
-              function (err) {
-                expect(err).to.not.exist;
+              // Setup a new document
+              collection.insert(
+                { a: 2, b: 2, failIndex: 2 },
+                configuration.writeConcernMax(),
+                function (err) {
+                  expect(err).to.not.exist;
 
-                // Let's attempt to upsert with a duplicate key error
-                collection.findAndModify(
-                  { c: 2 },
-                  [['a', 1]],
-                  { a: 10, b: 10, failIndex: 2 },
-                  { w: 1, upsert: true },
-                  function (err, result) {
-                    expect(result).to.not.exist;
-                    expect(err)
-                      .property('errmsg')
-                      .to.match(/duplicate key/);
-                    client.close(done);
-                  }
-                );
-              }
-            );
-          });
+                  // Let's attempt to upsert with a duplicate key error
+                  collection.findAndModify(
+                    { c: 2 },
+                    [['a', 1]],
+                    { a: 10, b: 10, failIndex: 2 },
+                    { writeConcern: { w: 1 }, upsert: true },
+                    function (err, result) {
+                      expect(result).to.not.exist;
+                      expect(err)
+                        .property('errmsg')
+                        .to.match(/duplicate key/);
+                      client.close(done);
+                    }
+                  );
+                }
+              );
+            }
+          );
         });
       });
     }
@@ -1265,7 +1247,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('Should_correctly_return_new_modified_document', function (
@@ -1310,7 +1292,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('execute_find_and_modify', function (err, collection) {
@@ -1321,7 +1303,7 @@ describe('Find', function () {
             { _id: self._id, 'plays.uuid': _uuid },
             [],
             { $set: { 'plays.$.active': true } },
-            { new: true, fields: { plays: 0, results: 0 }, safe: true },
+            { new: true, projection: { plays: 0, results: 0 }, safe: true },
             function (err) {
               expect(err).to.not.exist;
               client.close(done);
@@ -1339,7 +1321,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('should_correctly_return_record_with_64bit_id', function (
@@ -1348,8 +1330,8 @@ describe('Find', function () {
         ) {
           var _lowerId = new ObjectId();
           var _higherId = new ObjectId();
-          var lowerId = new Long.fromString('133118461172916224', 10);
-          var higherId = new Long.fromString('133118461172916225', 10);
+          var lowerId = Long.fromString('133118461172916224', 10);
+          var higherId = Long.fromString('133118461172916225', 10);
 
           var lowerDoc = { _id: _lowerId, id: lowerId };
           var higherDoc = { _id: _higherId, id: higherId };
@@ -1386,8 +1368,7 @@ describe('Find', function () {
     test: function (done) {
       var configuration = this.configuration;
       var p_client = configuration.newClient(configuration.writeConcernMax(), {
-        poolSize: 1,
-        auto_reconnect: false
+        maxPoolSize: 1
       });
       p_client.connect(function (err, client) {
         var db = client.db(configuration.db);
@@ -1401,18 +1382,20 @@ describe('Find', function () {
               expect(err).to.not.exist;
 
               // Get one document, excluding the _id field
-              collection.findOne({ a: 1 }, { fields: { _id: 0 } }, function (err, item) {
+              collection.findOne({ a: 1 }, { projection: { _id: 0 } }, function (err, item) {
                 expect(item._id).to.not.exist;
                 test.equal(1, item.a);
                 test.equal(2, item.c);
 
-                collection.find({ a: 1 }, { fields: { _id: 0 } }).toArray(function (err, items) {
-                  var item = items[0];
-                  expect(item._id).to.not.exist;
-                  test.equal(1, item.a);
-                  test.equal(2, item.c);
-                  p_client.close(done);
-                });
+                collection
+                  .find({ a: 1 }, { projection: { _id: 0 } })
+                  .toArray(function (err, items) {
+                    var item = items[0];
+                    expect(item._id).to.not.exist;
+                    test.equal(1, item.a);
+                    test.equal(2, item.c);
+                    p_client.close(done);
+                  });
               });
             });
           }
@@ -1428,7 +1411,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection(
@@ -1459,7 +1442,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection(
@@ -1486,7 +1469,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         var transaction = {};
@@ -1515,7 +1498,7 @@ describe('Find', function () {
 
             collection.findOne(
               {
-                _id: r.ops[0]._id,
+                _id: r.insertedIds[0],
                 'funds.remaining': { $gte: 3.0 },
                 'transactions.id': { $ne: transaction.transactionId }
               },
@@ -1524,7 +1507,7 @@ describe('Find', function () {
 
                 collection.findAndModify(
                   {
-                    _id: r.ops[0]._id,
+                    _id: r.insertedIds[0],
                     'funds.remaining': { $gte: 3.0 },
                     'transactions.id': { $ne: transaction.transactionId }
                   },
@@ -1552,8 +1535,7 @@ describe('Find', function () {
     test: function (done) {
       var configuration = this.configuration;
       var p_client = configuration.newClient(configuration.writeConcernMax(), {
-        poolSize: 1,
-        auto_reconnect: false
+        maxPoolSize: 1
       });
 
       p_client.connect(function (err, client) {
@@ -1610,7 +1592,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection(
@@ -1643,8 +1625,7 @@ describe('Find', function () {
     test: function (done) {
       var configuration = this.configuration;
       var p_client = configuration.newClient(configuration.writeConcernMax(), {
-        poolSize: 1,
-        auto_reconnect: false
+        maxPoolSize: 1
       });
       var running = true;
 
@@ -1690,8 +1671,7 @@ describe('Find', function () {
     test: function (done) {
       var configuration = this.configuration;
       var p_client = configuration.newClient(configuration.writeConcernMax(), {
-        poolSize: 1,
-        auto_reconnect: false
+        maxPoolSize: 1
       });
       var numberOfSteps = 0;
 
@@ -1717,14 +1697,17 @@ describe('Find', function () {
           var cursor = collection.find({}, {});
           cursor.count(function (err) {
             expect(err).to.not.exist;
-            cursor.each(function (err, obj) {
-              if (obj == null) {
+            cursor.forEach(
+              doc => {
+                expect(doc).to.exist;
+                numberOfSteps = numberOfSteps + 1;
+              },
+              err => {
+                expect(err).to.not.exist;
                 test.equal(500, numberOfSteps);
                 p_client.close(done);
-              } else {
-                numberOfSteps = numberOfSteps + 1;
               }
-            });
+            );
           });
         });
       });
@@ -1739,8 +1722,7 @@ describe('Find', function () {
     test: function (done) {
       var configuration = this.configuration;
       var p_client = configuration.newClient(configuration.writeConcernMax(), {
-        poolSize: 1,
-        auto_reconnect: false
+        maxPoolSize: 1
       });
       p_client.connect(function (err, client) {
         var db = client.db(configuration.db);
@@ -1758,9 +1740,11 @@ describe('Find', function () {
             configuration.writeConcernMax(),
             function (err, r) {
               expect(err).to.not.exist;
-              var id = r.ops[1]._id;
+              var id = r.insertedIds[1];
               // Set an index
-              collection.ensureIndex('login', { unique: true, w: 1 }, function (err) {
+              collection.ensureIndex('login', { unique: true, writeConcern: { w: 1 } }, function (
+                err
+              ) {
                 expect(err).to.not.exist;
 
                 // Attemp to modify document
@@ -1792,7 +1776,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
 
@@ -1830,7 +1814,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         expect(err).to.not.exist;
@@ -1846,7 +1830,7 @@ describe('Find', function () {
           function (err) {
             expect(err).to.not.exist;
 
-            col.find({}, { skip: 1, limit: 1, fields: { a: 1, b: 0 } }).toArray(function (err) {
+            col.find({}, { skip: 1, limit: 1, projection: { a: 1, b: 0 } }).toArray(function (err) {
               test.ok(err instanceof Error);
               client.close(done);
             });
@@ -1866,7 +1850,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
 
@@ -1925,7 +1909,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
 
@@ -1973,7 +1957,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
 
@@ -2016,7 +2000,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
 
@@ -2059,7 +2043,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
 
@@ -2115,7 +2099,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
 
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
@@ -2155,18 +2139,22 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         expect(err).to.not.exist;
         // Create a collection we want to drop later
         db.collection('noresultAvailableForEachToIterate', function (err, collection) {
           // Perform a simple find and return all the documents
-          collection.find({}).each(function (err, item) {
-            expect(item).to.not.exist;
-
-            client.close(done);
-          });
+          collection.find({}).forEach(
+            doc => {
+              expect(doc).to.not.exist;
+            },
+            err => {
+              expect(err).to.not.exist;
+              client.close(done);
+            }
+          );
         });
       });
     }
@@ -2177,7 +2165,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         // Serialized regexes contain extra trailing chars. Sometimes these trailing chars contain / which makes
@@ -2217,7 +2205,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         // Serialized regexes contain extra trailing chars. Sometimes these trailing chars contain / which makes
@@ -2237,7 +2225,10 @@ describe('Find', function () {
                   test.equal(10, docs[0].max);
 
                   collection
-                    .find({ _id: { $in: ['some', 'value', 123] } }, { fields: { _id: 1, max: 1 } })
+                    .find(
+                      { _id: { $in: ['some', 'value', 123] } },
+                      { projection: { _id: 1, max: 1 } }
+                    )
                     .toArray(function (err, docs) {
                       expect(err).to.not.exist;
                       test.equal(10, docs[0].max);
@@ -2264,7 +2255,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
 
@@ -2281,7 +2272,7 @@ describe('Find', function () {
               collection
                 .find(
                   { $text: { $search: 'spam' } },
-                  { fields: { _id: false, s: true, score: { $meta: 'textScore' } } }
+                  { projection: { _id: false, s: true, score: { $meta: 'textScore' } } }
                 )
                 .sort({ score: { $meta: 'textScore' } })
                 .toArray(function (err, items) {
@@ -2303,7 +2294,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         var collection = db.collection('shouldNotMutateUserOptions');
@@ -2313,52 +2304,6 @@ describe('Find', function () {
         expect(options.limit).to.not.exist;
         test.equal('TEST', options.raw);
         client.close(done);
-      });
-    }
-  });
-
-  it('Should simulate closed cursor', {
-    // Add a tag that our runner can trigger on
-    // in this case we are setting that node needs to be higher than 0.10.X to run
-    metadata: { requires: { mongodb: '>2.5.5', topology: ['single', 'replicaset'] } },
-
-    test: function (done) {
-      var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
-      client.connect((err, client) => {
-        expect(err).to.not.exist;
-        this.defer(() => client.close());
-
-        const db = client.db(configuration.db);
-        const docs = [];
-        for (let i = 0; i < 1000; i++) {
-          docs.push({ a: i });
-        }
-
-        // Get the collection
-        const collection = db.collection('simulate_closed_cursor');
-        // Insert 1000 documents in a batch
-        collection.insert(docs, err => {
-          expect(err).to.not.exist;
-
-          // Get the cursor
-          var cursor = collection.find({}).batchSize(2);
-          this.defer(() => cursor.close());
-
-          // Get next document
-          cursor.next((err, doc) => {
-            expect(err).to.not.exist;
-            test.ok(doc != null);
-
-            // Mess with state forcing a call to isDead on the cursor
-            cursor.s.state = 2;
-
-            cursor.next(err => {
-              test.ok(err !== null);
-              done();
-            });
-          });
-        });
       });
     }
   });
@@ -2373,7 +2318,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.createCollection('test_find_and_modify_a_document_3', function (err, collection) {
@@ -2410,7 +2355,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.collection('test_find_simple_batchsize_0', function (err, collection) {
@@ -2447,7 +2392,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.collection('test_find_simple_limit_0', function (err, collection) {
@@ -2487,7 +2432,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.collection('elem_match_test', function (err, collection) {
@@ -2530,7 +2475,7 @@ describe('Find', function () {
 
     test: function (done) {
       var configuration = this.configuration;
-      var client = configuration.newClient(configuration.writeConcernMax(), { poolSize: 1 });
+      var client = configuration.newClient(configuration.writeConcernMax(), { maxPoolSize: 1 });
       client.connect(function (err, client) {
         var db = client.db(configuration.db);
         db.collection('test_find_simple_limit_101', function (err, collection) {
@@ -2629,7 +2574,8 @@ describe('Find', function () {
         expect(err).to.not.exist;
 
         let selectedServer;
-        const selectServerStub = sinon.stub(client.topology, 'selectServer').callsFake(function () {
+        const topology = client.topology;
+        const selectServerStub = sinon.stub(topology, 'selectServer').callsFake(function () {
           const args = Array.prototype.slice.call(arguments);
           const originalCallback = args.pop();
           args.push((err, server) => {
@@ -2637,7 +2583,7 @@ describe('Find', function () {
             originalCallback(err, server);
           });
 
-          return client.topology.selectServer.wrappedMethod.apply(this, args);
+          return topology.selectServer.wrappedMethod.apply(this, args);
         });
 
         const collection = client.db().collection('test_read_preference');
