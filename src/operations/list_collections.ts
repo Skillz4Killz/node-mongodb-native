@@ -1,13 +1,13 @@
-import { CommandOperation, CommandOperationOptions } from './command';
-import { Aspect, defineAspects } from './operation';
-import { maxWireVersion, Callback, getTopology, MongoDBNamespace } from '../utils';
-import * as CONSTANTS from '../constants';
-import type { Document } from '../bson';
-import type { Server } from '../sdam/server';
-import type { Db } from '../db';
-import { AbstractCursor } from '../cursor/abstract_cursor';
-import type { ClientSession } from '../sessions';
-import { executeOperation, ExecutionResult } from './execute_operation';
+import { CommandOperation, CommandOperationOptions } from './command.ts';
+import { Aspect, defineAspects } from './operation.ts';
+import { maxWireVersion, Callback, getTopology, MongoDBNamespace } from '../utils.ts';
+import * as CONSTANTS from '../constants.ts';
+import type { Document } from '../bson.ts';
+import type { Server } from '../sdam/server.ts';
+import type { Db } from '../db.ts';
+import { AbstractCursor } from '../cursor/abstract_cursor.ts';
+import type { ClientSession } from '../sessions.ts';
+import { executeOperation, ExecutionResult } from './execute_operation.ts';
 
 const LIST_COLLECTIONS_WIRE_VERSION = 3;
 

@@ -1,7 +1,7 @@
-import { Binary } from '../../bson';
-import { AuthProvider, AuthContext } from './auth_provider';
-import { MongoError } from '../../error';
-import { Callback, ns } from '../../utils';
+import { AuthProvider, AuthContext } from './auth_provider.ts';
+import { MongoError } from '../../error.ts';
+import { Callback, ns } from '../../utils.ts';
+import { Binary, Buffer } from "../../../deps.ts";
 
 export class Plain extends AuthProvider {
   auth(authContext: AuthContext, callback: Callback): void {

@@ -1,8 +1,8 @@
-import * as zlib from 'zlib';
-import type { Callback } from '../../utils';
-import type { OperationDescription } from '../message_stream';
+import type { Callback } from '../../utils.ts';
+import type { OperationDescription } from '../message_stream.ts';
 
-import { Snappy } from '../../deps';
+import { Snappy } from '../../deps.ts';
+import { Buffer, zlib } from "../../../deps.ts";
 
 /** @public */
 export enum Compressor {
@@ -29,11 +29,11 @@ export const uncompressibleCommands = new Set([
 
 // Facilitate compressing a message using an agreed compressor
 export function compress(
-  self: { options: OperationDescription & zlib.ZlibOptions },
+  self: { options: OperationDescription & ZlibOptions },
   dataToBeCompressed: Buffer,
   callback: Callback<Buffer>
 ): void {
-  const zlibOptions = {} as zlib.ZlibOptions;
+  const zlibOptions = {} as ZlibOptions;
   switch (self.options.agreedCompressor) {
     case 'snappy':
       if ('kModuleError' in Snappy) {
@@ -46,7 +46,7 @@ export function compress(
       if (self.options.zlibCompressionLevel) {
         zlibOptions.level = self.options.zlibCompressionLevel;
       }
-      zlib.deflate(dataToBeCompressed, zlibOptions, callback as zlib.CompressCallback);
+      deflate(dataToBeCompressed, zlibOptions, callback as CompressCallback);
       break;
     default:
       throw new Error(
@@ -78,7 +78,7 @@ export function decompress(
       Snappy.uncompress(compressedData, { asBuffer: true }, callback as Callback);
       break;
     case Compressor.zlib:
-      zlib.inflate(compressedData, callback as zlib.CompressCallback);
+      inflate(compressedData, callback as CompressCallback);
       break;
     default:
       callback(undefined, compressedData);

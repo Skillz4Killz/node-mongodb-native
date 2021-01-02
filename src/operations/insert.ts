@@ -1,15 +1,16 @@
-import { MongoError } from '../error';
-import { defineAspects, Aspect, AbstractOperation } from './operation';
-import { CommandOperation } from './command';
-import { prepareDocs } from './common_functions';
-import type { Callback, MongoDBNamespace } from '../utils';
-import type { Server } from '../sdam/server';
-import type { Collection } from '../collection';
-import type { ObjectId, Document, BSONSerializeOptions } from '../bson';
-import type { BulkWriteOptions } from '../bulk/common';
-import { WriteConcern, WriteConcernOptions } from '../write_concern';
-import type { ClientSession } from '../sessions';
-import { BulkWriteOperation } from './bulk_write';
+import { MongoError } from '../error.ts';
+import { defineAspects, Aspect, AbstractOperation } from './operation.ts';
+import { CommandOperation } from './command.ts';
+import { prepareDocs } from './common_functions.ts';
+import type { Callback, MongoDBNamespace } from '../utils.ts';
+import type { Server } from '../sdam/server.ts';
+import type { Collection } from '../collection.ts';
+import type { Document, BSONSerializeOptions } from '../bson.ts';
+import type { BulkWriteOptions } from '../bulk/common.ts';
+import { WriteConcern, WriteConcernOptions } from '../write_concern.ts';
+import type { ClientSession } from '../sessions.ts';
+import { BulkWriteOperation } from './bulk_write.ts';
+import { ObjectId } from "../../deps.ts";
 
 /** @internal */
 export class InsertOperation extends CommandOperation<Document> {

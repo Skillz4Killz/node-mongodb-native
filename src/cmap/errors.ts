@@ -1,6 +1,6 @@
-import { MongoError } from '../error';
-import type { Connection } from './connection';
-import type { ConnectionPool } from './connection_pool';
+import { MongoError } from '../error.ts';
+import type { Connection } from './connection.ts';
+import type { ConnectionPool } from './connection_pool.ts';
 
 /**
  * An error indicating a connection pool is closed

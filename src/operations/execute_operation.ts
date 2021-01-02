@@ -1,12 +1,12 @@
-import { ReadPreference } from '../read_preference';
-import { MongoError, isRetryableError } from '../error';
-import { Aspect, AbstractOperation } from './operation';
-import { maxWireVersion, maybePromise, Callback } from '../utils';
-import { ServerType } from '../sdam/common';
-import type { Server } from '../sdam/server';
-import type { Topology } from '../sdam/topology';
-import type { ClientSession } from '../sessions';
-import type { Document } from '../bson';
+import { ReadPreference } from '../read_preference.ts';
+import { MongoError, isRetryableError } from '../error.ts';
+import { Aspect, AbstractOperation } from './operation.ts';
+import { maxWireVersion, maybePromise, Callback } from '../utils.ts';
+import { ServerType } from '../sdam/common.ts';
+import type { Server } from '../sdam/server.ts';
+import type { Topology } from '../sdam/topology.ts';
+import type { ClientSession } from '../sessions.ts';
+import type { Document } from '../bson.ts';
 
 const MMAPv1_RETRY_WRITES_ERROR_CODE = 20;
 const MMAPv1_RETRY_WRITES_ERROR_MESSAGE =

@@ -1,27 +1,23 @@
-import * as url from 'url';
-import * as qs from 'querystring';
-import * as dns from 'dns';
-import { URL } from 'url';
-import { AuthMechanism } from './cmap/auth/defaultAuthProviders';
-import { ReadPreference, ReadPreferenceModeId } from './read_preference';
-import { ReadConcern, ReadConcernLevelId } from './read_concern';
-import { W, WriteConcern } from './write_concern';
-import { MongoParseError } from './error';
-import { AnyOptions, Callback, isRecord } from './utils';
-import type { ConnectionOptions } from './cmap/connection';
-import type { Document } from './bson';
-import type { CompressorName } from './cmap/wire_protocol/compression';
+import { ObjectId } from '../deps.ts';
+import { AuthMechanism } from './cmap/auth/defaultAuthProviders.ts';
+import { ReadPreference, ReadPreferenceModeId } from './read_preference.ts';
+import { ReadConcern, ReadConcernLevelId } from './read_concern.ts';
+import { W, WriteConcern } from './write_concern.ts';
+import { MongoParseError } from './error.ts';
+import { AnyOptions, Callback, isRecord } from './utils.ts';
+import type { ConnectionOptions } from './cmap/connection.ts';
+import type { Document } from './bson.ts';
+import type { CompressorName } from './cmap/wire_protocol/compression.ts';
 import type {
   DriverInfo,
   HostAddress,
   MongoClientOptions,
   MongoOptions,
   PkFactory
-} from './mongo_client';
-import { MongoCredentials } from './cmap/auth/mongo_credentials';
-import type { TagSet } from './sdam/server_description';
-import { Logger, LoggerLevel } from './logger';
-import { ObjectId } from 'bson';
+} from './mongo_client.ts';
+import { MongoCredentials } from './cmap/auth/mongo_credentials.ts';
+import type { TagSet } from './sdam/server_description.ts';
+import { Logger, LoggerLevel } from './logger.ts';
 
 /**
  * The following regular expression validates a connection string and breaks the

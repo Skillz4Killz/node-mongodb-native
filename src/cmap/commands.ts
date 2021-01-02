@@ -1,10 +1,10 @@
-import { ReadPreference } from '../read_preference';
-import * as BSON from '../bson';
-import { databaseNamespace } from '../utils';
-import { OP_QUERY, OP_GETMORE, OP_KILL_CURSORS, OP_MSG } from './wire_protocol/constants';
-import type { Long, Document, BSONSerializeOptions } from '../bson';
-import type { ClientSession } from '../sessions';
-import type { CommandOptions } from './connection';
+import { Buffer, deserialize, Document, Long, serialize } from "../../deps.ts";
+import { ReadPreference } from '../read_preference.ts';
+import { databaseNamespace } from '../utils.ts';
+import { OP_QUERY, OP_GETMORE, OP_KILL_CURSORS, OP_MSG } from './wire_protocol/constants.ts';
+import type { ClientSession } from '../sessions.ts';
+import type { CommandOptions } from './connection.ts';
+import { BSONSerializeOptions } from "../bson.ts";
 
 // Incrementing request id
 let _requestId = 0;
@@ -183,7 +183,7 @@ export class Query {
     buffers.push(header);
 
     // Serialize the query
-    const query = BSON.serialize(this.query, {
+    const query = serialize(this.query, {
       checkKeys: this.checkKeys,
       serializeFunctions: this.serializeFunctions,
       ignoreUndefined: this.ignoreUndefined
@@ -194,7 +194,7 @@ export class Query {
 
     if (this.returnFieldSelector && Object.keys(this.returnFieldSelector).length > 0) {
       // Serialize the projection document
-      projection = BSON.serialize(this.returnFieldSelector, {
+      projection = serialize(this.returnFieldSelector, {
         checkKeys: this.checkKeys,
         serializeFunctions: this.serializeFunctions,
         ignoreUndefined: this.ignoreUndefined
@@ -244,7 +244,7 @@ export class Query {
     index = index + 4;
 
     // Write collection name
-    index = index + header.write(this.ns, index, 'utf8') + 1;
+    index = index + header.write(this.ns, index) + 1;
     header[index - 1] = 0;
 
     // Write header information flags numberToSkip
@@ -333,7 +333,7 @@ export class GetMore {
     index = index + 4;
 
     // Write collection name
-    index = index + _buffer.write(this.ns, index, 'utf8') + 1;
+    index = index + _buffer.write(this.ns, index) + 1;
     _buffer[index - 1] = 0;
 
     // Write batch size
@@ -512,7 +512,7 @@ export class Response {
 
     // Read the message body
     this.responseFlags = msgBody.readInt32LE(0);
-    this.cursorId = new BSON.Long(msgBody.readInt32LE(4), msgBody.readInt32LE(8));
+    this.cursorId = new Long(msgBody.readInt32LE(4), msgBody.readInt32LE(8));
     this.startingFrom = msgBody.readInt32LE(12);
     this.numberReturned = msgBody.readInt32LE(16);
 
@@ -571,7 +571,7 @@ export class Response {
       if (raw) {
         this.documents[i] = this.data.slice(this.index, this.index + bsonSize);
       } else {
-        this.documents[i] = BSON.deserialize(
+        this.documents[i] = deserialize(
           this.data.slice(this.index, this.index + bsonSize),
           _options
         );
@@ -586,7 +586,7 @@ export class Response {
       fieldsAsRaw[documentsReturnedIn] = true;
       _options.fieldsAsRaw = fieldsAsRaw;
 
-      const doc = BSON.deserialize(this.documents[0] as Buffer, _options);
+      const doc = deserialize(this.documents[0] as Buffer, _options);
       this.documents = [doc];
     }
 
@@ -733,7 +733,7 @@ export class Msg {
   }
 
   serializeBson(document: Document): Buffer {
-    return BSON.serialize(document, {
+    return serialize(document, {
       checkKeys: this.checkKeys,
       serializeFunctions: this.serializeFunctions,
       ignoreUndefined: this.ignoreUndefined
@@ -830,7 +830,7 @@ export class BinMsg {
       } else if (payloadType === 0) {
         const bsonSize = this.data.readUInt32LE(this.index);
         const bin = this.data.slice(this.index, this.index + bsonSize);
-        this.documents.push(raw ? bin : BSON.deserialize(bin, _options));
+        this.documents.push(raw ? bin : deserialize(bin, _options));
 
         this.index += bsonSize;
       }
@@ -841,7 +841,7 @@ export class BinMsg {
       fieldsAsRaw[documentsReturnedIn] = true;
       _options.fieldsAsRaw = fieldsAsRaw;
 
-      const doc = BSON.deserialize(this.documents[0] as Buffer, _options);
+      const doc = deserialize(this.documents[0] as Buffer, _options);
       this.documents = [doc];
     }
 

@@ -1,20 +1,20 @@
-import { Aspect, defineAspects, Hint } from './operation';
+import { Aspect, defineAspects, Hint } from './operation.ts';
 import {
   maxWireVersion,
   MongoDBNamespace,
   Callback,
   normalizeHintField,
   decorateWithExplain
-} from '../utils';
-import { MongoError } from '../error';
-import type { Document } from '../bson';
-import type { Server } from '../sdam/server';
-import type { Collection } from '../collection';
-import { CommandOperation, CommandOperationOptions, CollationOptions } from './command';
-import { Sort, formatSort } from '../sort';
-import { isSharded } from '../cmap/wire_protocol/shared';
-import { ReadConcern } from '../read_concern';
-import type { ClientSession } from '../sessions';
+} from '../utils.ts';
+import { MongoError } from '../error.ts';
+import type { Document } from '../bson.ts';
+import type { Server } from '../sdam/server.ts';
+import type { Collection } from '../collection.ts';
+import { CommandOperation, CommandOperationOptions, CollationOptions } from './command.ts';
+import { Sort, formatSort } from '../sort.ts';
+import { isSharded } from '../cmap/wire_protocol/shared.ts';
+import { ReadConcern } from '../read_concern.ts';
+import type { ClientSession } from '../sessions.ts';
 
 /** @public */
 export interface FindOptions extends CommandOperationOptions {

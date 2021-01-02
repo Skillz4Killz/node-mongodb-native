@@ -1,15 +1,13 @@
-import * as crypto from 'crypto';
-import { Writable } from 'stream';
-import { MongoError, AnyError } from '../error';
-import { WriteConcern } from './../write_concern';
-import { PromiseProvider } from '../promise_provider';
-import { ObjectId } from '../bson';
-import type { Callback } from '../utils';
-import type { Collection } from '../collection';
-import type { Document } from '../bson';
-import type { GridFSBucket } from './index';
-import type { GridFSFile } from './download';
-import type { WriteConcernOptions } from '../write_concern';
+import { MongoError, AnyError } from '../error.ts';
+import { WriteConcern } from './../write_concern.ts';
+import { PromiseProvider } from '../promise_provider.ts';
+import type { Callback } from '../utils.ts';
+import type { Collection } from '../collection.ts';
+import type { Document } from '../bson.ts';
+import type { GridFSBucket } from './index.ts';
+import type { GridFSFile } from './download.ts';
+import type { WriteConcernOptions } from '../write_concern.ts';
+import { Buffer, createHash, ObjectId } from "../../deps.ts";
 
 const ERROR_NAMESPACE_NOT_FOUND = 26;
 
@@ -98,7 +96,7 @@ export class GridFSBucketWriteStream extends Writable {
     this.chunkSizeBytes = options.chunkSizeBytes || this.bucket.s.options.chunkSizeBytes;
     this.bufToStore = Buffer.alloc(this.chunkSizeBytes);
     this.length = 0;
-    this.md5 = !options.disableMD5 && crypto.createHash('md5');
+    this.md5 = !options.disableMD5 && createHash('md5');
     this.n = 0;
     this.pos = 0;
     this.state = {

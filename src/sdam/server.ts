@@ -1,10 +1,10 @@
-import { EventEmitter } from 'events';
-import { Logger } from '../logger';
-import { ConnectionPool, ConnectionPoolOptions } from '../cmap/connection_pool';
-import { CMAP_EVENT_NAMES } from '../cmap/events';
-import { ServerDescription, compareTopologyVersion } from './server_description';
-import { Monitor } from './monitor';
-import { isTransactionCommand } from '../transactions';
+import { EventEmitter, Long } from "../../deps.ts";
+import { Logger } from "../logger.ts";
+import { ConnectionPool, ConnectionPoolOptions } from "../cmap/connection_pool.ts";
+import { CMAP_EVENT_NAMES } from "../cmap/events.ts";
+import { ServerDescription, compareTopologyVersion } from "./server_description.ts";
+import { Monitor } from "./monitor.ts";
+import { isTransactionCommand } from "../transactions.ts";
 import {
   relayEvents,
   collationNotSupported,
@@ -14,16 +14,9 @@ import {
   ClientMetadataOptions,
   Callback,
   CallbackWithType,
-  MongoDBNamespace
-} from '../utils';
-import {
-  ServerType,
-  STATE_CLOSED,
-  STATE_CLOSING,
-  STATE_CONNECTING,
-  STATE_CONNECTED,
-  ClusterTime
-} from './common';
+  MongoDBNamespace,
+} from "../utils.ts";
+import { ServerType, STATE_CLOSED, STATE_CLOSING, STATE_CONNECTING, STATE_CONNECTED, ClusterTime } from "./common.ts";
 import {
   MongoError,
   MongoNetworkError,
@@ -31,58 +24,52 @@ import {
   isSDAMUnrecoverableError,
   isRetryableWriteError,
   isNodeShuttingDownError,
-  isNetworkErrorBeforeHandshake
-} from '../error';
-import {
-  Connection,
-  DestroyOptions,
-  QueryOptions,
-  GetMoreOptions,
-  CommandOptions
-} from '../cmap/connection';
-import type { Topology } from './topology';
-import type { MongoCredentials } from '../cmap/auth/mongo_credentials';
-import type { ServerHeartbeatSucceededEvent } from './events';
-import type { ClientSession } from '../sessions';
-import type { Document, Long } from '../bson';
-import type { AutoEncrypter } from '../deps';
+  isNetworkErrorBeforeHandshake,
+} from "../error.ts";
+import { Connection, DestroyOptions, QueryOptions, GetMoreOptions, CommandOptions } from "../cmap/connection.ts";
+import type { Topology } from "./topology.ts";
+import type { MongoCredentials } from "../cmap/auth/mongo_credentials.ts";
+import type { ServerHeartbeatSucceededEvent } from "./events.ts";
+import type { ClientSession } from "../sessions.ts";
+import type { Document } from "../bson.ts";
+import type { AutoEncrypter } from "../deps.ts";
 
 // Used for filtering out fields for logging
 const DEBUG_FIELDS = [
-  'reconnect',
-  'reconnectTries',
-  'reconnectInterval',
-  'emitError',
-  'cursorFactory',
-  'host',
-  'port',
-  'size',
-  'keepAlive',
-  'keepAliveInitialDelay',
-  'noDelay',
-  'connectionTimeout',
-  'checkServerIdentity',
-  'socketTimeout',
-  'ssl',
-  'ca',
-  'crl',
-  'cert',
-  'key',
-  'rejectUnauthorized',
-  'promoteLongs',
-  'promoteValues',
-  'promoteBuffers',
-  'servername'
+  "reconnect",
+  "reconnectTries",
+  "reconnectInterval",
+  "emitError",
+  "cursorFactory",
+  "host",
+  "port",
+  "size",
+  "keepAlive",
+  "keepAliveInitialDelay",
+  "noDelay",
+  "connectionTimeout",
+  "checkServerIdentity",
+  "socketTimeout",
+  "ssl",
+  "ca",
+  "crl",
+  "cert",
+  "key",
+  "rejectUnauthorized",
+  "promoteLongs",
+  "promoteValues",
+  "promoteBuffers",
+  "servername",
 ];
 
 const stateTransition = makeStateMachine({
   [STATE_CLOSED]: [STATE_CLOSED, STATE_CONNECTING],
   [STATE_CONNECTING]: [STATE_CONNECTING, STATE_CLOSING, STATE_CONNECTED, STATE_CLOSED],
   [STATE_CONNECTED]: [STATE_CONNECTED, STATE_CLOSING, STATE_CLOSED],
-  [STATE_CLOSING]: [STATE_CLOSING, STATE_CLOSED]
+  [STATE_CLOSING]: [STATE_CLOSING, STATE_CLOSED],
 });
 
-const kMonitor = Symbol('monitor');
+const kMonitor = Symbol("monitor");
 
 /** @public */
 export interface ServerOptions extends ConnectionPoolOptions, ClientMetadataOptions {
@@ -114,19 +101,19 @@ export class Server extends EventEmitter {
   [kMonitor]: Monitor;
 
   /** @event */
-  static readonly SERVER_HEARTBEAT_STARTED = 'serverHeartbeatStarted' as const;
+  static readonly SERVER_HEARTBEAT_STARTED = "serverHeartbeatStarted" as const;
   /** @event */
-  static readonly SERVER_HEARTBEAT_SUCCEEDED = 'serverHeartbeatSucceeded' as const;
+  static readonly SERVER_HEARTBEAT_SUCCEEDED = "serverHeartbeatSucceeded" as const;
   /** @event */
-  static readonly SERVER_HEARTBEAT_FAILED = 'serverHeartbeatFailed' as const;
+  static readonly SERVER_HEARTBEAT_FAILED = "serverHeartbeatFailed" as const;
   /** @event */
-  static readonly CONNECT = 'connect' as const;
+  static readonly CONNECT = "connect" as const;
   /** @event */
-  static readonly DESCRIPTION_RECEIVED = 'descriptionReceived' as const;
+  static readonly DESCRIPTION_RECEIVED = "descriptionReceived" as const;
   /** @event */
-  static readonly CLOSED = 'closed' as const;
+  static readonly CLOSED = "closed" as const;
   /** @event */
-  static readonly ENDED = 'ended' as const;
+  static readonly ENDED = "ended" as const;
 
   /**
    * Create a server
@@ -137,17 +124,13 @@ export class Server extends EventEmitter {
     this.s = {
       description,
       options,
-      logger: new Logger('Server', options),
+      logger: new Logger("Server", options),
       state: STATE_CLOSED,
       topology,
-      pool: new ConnectionPool({ host: description.host, port: description.port, ...options })
+      pool: new ConnectionPool({ host: description.host, port: description.port, ...options }),
     };
 
-    relayEvents(
-      this.s.pool,
-      this,
-      ['commandStarted', 'commandSucceeded', 'commandFailed'].concat(CMAP_EVENT_NAMES)
-    );
+    relayEvents(this.s.pool, this, ["commandStarted", "commandSucceeded", "commandFailed"].concat(CMAP_EVENT_NAMES));
 
     this.s.pool.on(Connection.CLUSTER_TIME_RECEIVED, (clusterTime: ClusterTime) => {
       this.clusterTime = clusterTime;
@@ -161,19 +144,19 @@ export class Server extends EventEmitter {
       Server.SERVER_HEARTBEAT_FAILED,
 
       // legacy events
-      'monitoring'
+      "monitoring",
     ]);
 
-    this[kMonitor].on('resetConnectionPool', () => {
+    this[kMonitor].on("resetConnectionPool", () => {
       this.s.pool.clear();
     });
 
-    this[kMonitor].on('resetServer', (error: MongoError) => markServerUnknown(this, error));
+    this[kMonitor].on("resetServer", (error: MongoError) => markServerUnknown(this, error));
     this[kMonitor].on(Server.SERVER_HEARTBEAT_SUCCEEDED, (event: ServerHeartbeatSucceededEvent) => {
       this.emit(
         Server.DESCRIPTION_RECEIVED,
         new ServerDescription(this.description.address, event.reply, {
-          roundTripTime: calculateRoundTripTime(this.description.roundTripTime, event.duration)
+          roundTripTime: calculateRoundTripTime(this.description.roundTripTime, event.duration),
         })
       );
 
@@ -212,11 +195,11 @@ export class Server extends EventEmitter {
 
   /** Destroy the server connection */
   destroy(options?: DestroyOptions, callback?: Callback): void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
     options = Object.assign({}, { force: false }, options);
 
     if (this.s.state === STATE_CLOSED) {
-      if (typeof callback === 'function') {
+      if (typeof callback === "function") {
         callback();
       }
 
@@ -226,10 +209,10 @@ export class Server extends EventEmitter {
     stateTransition(this, STATE_CLOSING);
 
     this[kMonitor].close();
-    this.s.pool.close(options, err => {
+    this.s.pool.close(options, (err) => {
       stateTransition(this, STATE_CLOSED);
-      this.emit('closed');
-      if (typeof callback === 'function') {
+      this.emit("closed");
+      if (typeof callback === "function") {
         callback(err);
       }
     });
@@ -249,32 +232,27 @@ export class Server extends EventEmitter {
    */
   command(ns: MongoDBNamespace, cmd: Document, callback: Callback): void;
   /** @internal */
-  command(
-    ns: MongoDBNamespace,
-    cmd: Document,
-    options: CommandOptions,
-    callback: Callback<Document>
-  ): void;
+  command(ns: MongoDBNamespace, cmd: Document, options: CommandOptions, callback: Callback<Document>): void;
   command(
     ns: MongoDBNamespace,
     cmd: Document,
     options?: CommandOptions | Callback<Document>,
     callback?: Callback<Document>
   ): void {
-    if (typeof options === 'function') {
+    if (typeof options === "function") {
       (callback = options), (options = {}), (options = options ?? {});
     }
 
     if (callback == null) {
-      throw new TypeError('callback must be provided');
+      throw new TypeError("callback must be provided");
     }
 
-    if (ns.db == null || typeof ns === 'string') {
-      throw new TypeError('ns must not be a string');
+    if (ns.db == null || typeof ns === "string") {
+      throw new TypeError("ns must not be a string");
     }
 
     if (this.s.state === STATE_CLOSING || this.s.state === STATE_CLOSED) {
-      callback(new MongoError('server is closed'));
+      callback(new MongoError("server is closed"));
       return;
     }
 
@@ -287,7 +265,7 @@ export class Server extends EventEmitter {
         `executing command [${JSON.stringify({
           ns,
           cmd,
-          options: debugOptions(DEBUG_FIELDS, options)
+          options: debugOptions(DEBUG_FIELDS, options),
         })}] against ${this.name}`
       );
     }
@@ -319,7 +297,7 @@ export class Server extends EventEmitter {
    */
   query(ns: MongoDBNamespace, cmd: Document, options: QueryOptions, callback: Callback): void {
     if (this.s.state === STATE_CLOSING || this.s.state === STATE_CLOSED) {
-      callback(new MongoError('server is closed'));
+      callback(new MongoError("server is closed"));
       return;
     }
 
@@ -337,14 +315,9 @@ export class Server extends EventEmitter {
    * Execute a `getMore` against the server
    * @internal
    */
-  getMore(
-    ns: MongoDBNamespace,
-    cursorId: Long,
-    options: GetMoreOptions,
-    callback: Callback<Document>
-  ): void {
+  getMore(ns: MongoDBNamespace, cursorId: Long, options: GetMoreOptions, callback: Callback<Document>): void {
     if (this.s.state === STATE_CLOSING || this.s.state === STATE_CLOSED) {
-      callback(new MongoError('server is closed'));
+      callback(new MongoError("server is closed"));
       return;
     }
 
@@ -354,12 +327,7 @@ export class Server extends EventEmitter {
         return cb(err);
       }
 
-      conn.getMore(
-        ns,
-        cursorId,
-        options,
-        makeOperationHandler(this, conn, {}, options, cb) as Callback
-      );
+      conn.getMore(ns, cursorId, options, makeOperationHandler(this, conn, {}, options, cb) as Callback);
     }, callback);
   }
 
@@ -367,15 +335,10 @@ export class Server extends EventEmitter {
    * Execute a `killCursors` command against the server
    * @internal
    */
-  killCursors(
-    ns: MongoDBNamespace,
-    cursorIds: Long[],
-    options: CommandOptions,
-    callback?: Callback
-  ): void {
+  killCursors(ns: MongoDBNamespace, cursorIds: Long[], options: CommandOptions, callback?: Callback): void {
     if (this.s.state === STATE_CLOSING || this.s.state === STATE_CLOSED) {
-      if (typeof callback === 'function') {
-        callback(new MongoError('server is closed'));
+      if (typeof callback === "function") {
+        callback(new MongoError("server is closed"));
       }
 
       return;
@@ -387,23 +350,18 @@ export class Server extends EventEmitter {
         return cb(err);
       }
 
-      conn.killCursors(
-        ns,
-        cursorIds,
-        options,
-        makeOperationHandler(this, conn, {}, undefined, cb) as Callback
-      );
+      conn.killCursors(ns, cursorIds, options, makeOperationHandler(this, conn, {}, undefined, cb) as Callback);
     }, callback);
   }
 }
 
-Object.defineProperty(Server.prototype, 'clusterTime', {
+Object.defineProperty(Server.prototype, "clusterTime", {
   get() {
     return this.s.topology.clusterTime;
   },
   set(clusterTime: ClusterTime) {
     this.s.topology.clusterTime = clusterTime;
-  }
+  },
 });
 
 function supportsRetryableWrites(server: Server) {
@@ -432,8 +390,7 @@ function markServerUnknown(server: Server, error?: MongoError) {
     Server.DESCRIPTION_RECEIVED,
     new ServerDescription(server.description.address, undefined, {
       error,
-      topologyVersion:
-        error && error.topologyVersion ? error.topologyVersion : server.description.topologyVersion
+      topologyVersion: error && error.topologyVersion ? error.topologyVersion : server.description.topologyVersion,
     })
   );
 }
@@ -478,7 +435,7 @@ function makeOperationHandler(
           supportsRetryableWrites(server) &&
           !inActiveTransaction(session, cmd)
         ) {
-          err.addErrorLabel('RetryableWriteError');
+          err.addErrorLabel("RetryableWriteError");
         }
 
         if (!(err instanceof MongoNetworkTimeoutError) || isNetworkErrorBeforeHandshake(err)) {
@@ -493,7 +450,7 @@ function makeOperationHandler(
           isRetryableWriteError(err) &&
           !inActiveTransaction(session, cmd)
         ) {
-          err.addErrorLabel('RetryableWriteError');
+          err.addErrorLabel("RetryableWriteError");
         }
 
         if (isSDAMUnrecoverableError(err)) {

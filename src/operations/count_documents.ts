@@ -1,9 +1,9 @@
-import { AggregateOperation, AggregateOptions } from './aggregate';
-import type { Callback } from '../utils';
-import type { Document } from '../bson';
-import type { Server } from '../sdam/server';
-import type { Collection } from '../collection';
-import type { ClientSession } from '../sessions';
+import { AggregateOperation, AggregateOptions } from './aggregate.ts';
+import type { Callback } from '../utils.ts';
+import type { Document } from '../bson.ts';
+import type { Server } from '../sdam/server.ts';
+import type { Collection } from '../collection.ts';
+import type { ClientSession } from '../sessions.ts';
 
 /** @public */
 export interface CountDocumentsOptions extends AggregateOptions {

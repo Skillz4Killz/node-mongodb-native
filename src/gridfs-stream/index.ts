@@ -1,28 +1,28 @@
-import { MongoError } from '../error';
-import { EventEmitter } from 'events';
+import { EventEmitter } from "../../deps.ts";
+import { MongoError } from "../error.ts";
 import {
   GridFSBucketReadStream,
   GridFSBucketReadStreamOptions,
-  GridFSBucketReadStreamOptionsWithRevision
-} from './download';
-import { GridFSBucketWriteStream, GridFSBucketWriteStreamOptions, TFileId } from './upload';
-import { executeLegacyOperation, Callback, getTopology } from '../utils';
-import { WriteConcernOptions, WriteConcern } from '../write_concern';
-import type { Document } from '../bson';
-import type { Db } from '../db';
-import type { ReadPreference } from '../read_preference';
-import type { Collection } from '../collection';
-import type { FindOptions } from './../operations/find';
-import type { Sort } from '../sort';
-import type { Logger } from '../logger';
-import type { FindCursor } from '../cursor/find_cursor';
+  GridFSBucketReadStreamOptionsWithRevision,
+} from "./download.ts";
+import { GridFSBucketWriteStream, GridFSBucketWriteStreamOptions, TFileId } from "./upload.ts";
+import { executeLegacyOperation, Callback, getTopology } from "../utils.ts";
+import { WriteConcernOptions, WriteConcern } from "../write_concern.ts";
+import type { Document } from "../bson.ts";
+import type { Db } from "../db.ts";
+import type { ReadPreference } from "../read_preference.ts";
+import type { Collection } from "../collection.ts";
+import type { FindOptions } from "./../operations/find.ts";
+import type { Sort } from "../sort.ts";
+import type { Logger } from "../logger.ts";
+import type { FindCursor } from "../cursor/find_cursor.ts";
 
 const DEFAULT_GRIDFS_BUCKET_OPTIONS: {
   bucketName: string;
   chunkSizeBytes: number;
 } = {
-  bucketName: 'fs',
-  chunkSizeBytes: 255 * 1024
+  bucketName: "fs",
+  chunkSizeBytes: 255 * 1024,
 };
 
 /** @public */
@@ -66,7 +66,7 @@ export class GridFSBucket extends EventEmitter {
    * necessary indexes.
    * @event
    */
-  static readonly INDEX = 'index' as const;
+  static readonly INDEX = "index" as const;
 
   constructor(db: Db, options?: GridFSBucketOptions) {
     super();
@@ -74,15 +74,15 @@ export class GridFSBucket extends EventEmitter {
     const privateOptions = {
       ...DEFAULT_GRIDFS_BUCKET_OPTIONS,
       ...options,
-      writeConcern: WriteConcern.fromOptions(options)
+      writeConcern: WriteConcern.fromOptions(options),
     };
     this.s = {
       db,
       options: privateOptions,
-      _chunksCollection: db.collection(privateOptions.bucketName + '.chunks'),
-      _filesCollection: db.collection(privateOptions.bucketName + '.files'),
+      _chunksCollection: db.collection(privateOptions.bucketName + ".chunks"),
+      _filesCollection: db.collection(privateOptions.bucketName + ".files"),
       checkedIndexes: false,
-      calledOpenUploadStream: false
+      calledOpenUploadStream: false,
     };
   }
 
@@ -95,10 +95,7 @@ export class GridFSBucket extends EventEmitter {
    * @param options - Optional settings.
    */
 
-  openUploadStream(
-    filename: string,
-    options?: GridFSBucketWriteStreamOptions
-  ): GridFSBucketWriteStream {
+  openUploadStream(filename: string, options?: GridFSBucketWriteStreamOptions): GridFSBucketWriteStream {
     return new GridFSBucketWriteStream(this, filename, options);
   }
 
@@ -135,7 +132,7 @@ export class GridFSBucket extends EventEmitter {
   delete(id: TFileId, callback: Callback<void>): void;
   delete(id: TFileId, callback?: Callback<void>): Promise<undefined> | void {
     return executeLegacyOperation(getTopology(this.s.db), _delete, [this, id, callback], {
-      skipSessions: true
+      skipSessions: true,
     });
   }
 
@@ -186,7 +183,7 @@ export class GridFSBucket extends EventEmitter {
   rename(id: TFileId, filename: string, callback: Callback<void>): void;
   rename(id: TFileId, filename: string, callback?: Callback<void>): Promise<void> | void {
     return executeLegacyOperation(getTopology(this.s.db), _rename, [this, id, filename, callback], {
-      skipSessions: true
+      skipSessions: true,
     });
   }
 
@@ -195,7 +192,7 @@ export class GridFSBucket extends EventEmitter {
   drop(callback: Callback<void>): void;
   drop(callback?: Callback<void>): Promise<void> | void {
     return executeLegacyOperation(getTopology(this.s.db), _drop, [this, callback], {
-      skipSessions: true
+      skipSessions: true,
     });
   }
 
@@ -211,14 +208,14 @@ function _delete(bucket: GridFSBucket, id: TFileId, callback: Callback<void>): v
       return callback(error);
     }
 
-    return bucket.s._chunksCollection.deleteMany({ files_id: id }, error => {
+    return bucket.s._chunksCollection.deleteMany({ files_id: id }, (error) => {
       if (error) {
         return callback(error);
       }
 
       // Delete orphaned chunks before returning FileNotFound
       if (!res?.deletedCount) {
-        const errmsg = 'FileNotFound: no file with id ' + id + ' found';
+        const errmsg = "FileNotFound: no file with id " + id + " found";
         return callback(new Error(errmsg));
       }
 
@@ -227,12 +224,7 @@ function _delete(bucket: GridFSBucket, id: TFileId, callback: Callback<void>): v
   });
 }
 
-function _rename(
-  bucket: GridFSBucket,
-  id: TFileId,
-  filename: string,
-  callback: Callback<void>
-): void {
+function _rename(bucket: GridFSBucket, id: TFileId, filename: string, callback: Callback<void>): void {
   const filter = { _id: id };
   const update = { $set: { filename } };
   return bucket.s._filesCollection.updateOne(filter, update, (error?, res?) => {

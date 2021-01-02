@@ -1,27 +1,27 @@
-import { indexInformation, IndexInformationOptions } from './common_functions';
-import { AbstractOperation, Aspect, defineAspects } from './operation';
-import { MongoError } from '../error';
+import { indexInformation, IndexInformationOptions } from './common_functions.ts';
+import { AbstractOperation, Aspect, defineAspects } from './operation.ts';
+import { MongoError } from '../error.ts';
 import {
   maxWireVersion,
   parseIndexOptions,
   MongoDBNamespace,
   Callback,
   getTopology
-} from '../utils';
+} from '../utils.ts';
 import {
   CommandOperation,
   CommandOperationOptions,
   OperationParent,
   CollationOptions
-} from './command';
-import { ReadPreference } from '../read_preference';
-import type { Server } from '../sdam/server';
-import type { Document } from '../bson';
-import type { Collection } from '../collection';
-import type { Db } from '../db';
-import { AbstractCursor } from '../cursor/abstract_cursor';
-import type { ClientSession } from '../sessions';
-import { executeOperation, ExecutionResult } from './execute_operation';
+} from './command.ts';
+import { ReadPreference } from '../read_preference.ts';
+import type { Server } from '../sdam/server.ts';
+import type { Document } from '../bson.ts';
+import type { Collection } from '../collection.ts';
+import type { Db } from '../db.ts';
+import { AbstractCursor } from '../cursor/abstract_cursor.ts';
+import type { ClientSession } from '../sessions.ts';
+import { executeOperation, ExecutionResult } from './execute_operation.ts';
 
 const LIST_INDEXES_WIRE_VERSION = 3;
 const VALID_INDEX_OPTIONS = new Set([

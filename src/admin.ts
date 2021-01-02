@@ -1,20 +1,13 @@
-import { AddUserOperation, AddUserOptions } from './operations/add_user';
-import { RemoveUserOperation, RemoveUserOptions } from './operations/remove_user';
-import {
-  ValidateCollectionOperation,
-  ValidateCollectionOptions
-} from './operations/validate_collection';
-import {
-  ListDatabasesOperation,
-  ListDatabasesOptions,
-  ListDatabasesResult
-} from './operations/list_databases';
-import { executeOperation } from './operations/execute_operation';
-import { RunCommandOperation, RunCommandOptions } from './operations/run_command';
-import { Callback, getTopology } from './utils';
-import type { Document } from './bson';
-import type { CommandOperationOptions } from './operations/command';
-import type { Db } from './db';
+import { AddUserOperation, AddUserOptions } from "./operations/add_user.ts";
+import { RemoveUserOperation, RemoveUserOptions } from "./operations/remove_user.ts";
+import { ValidateCollectionOperation, ValidateCollectionOptions } from "./operations/validate_collection.ts";
+import { ListDatabasesOperation, ListDatabasesOptions, ListDatabasesResult } from "./operations/list_databases.ts";
+import { executeOperation } from "./operations/execute_operation.ts";
+import { RunCommandOperation, RunCommandOptions } from "./operations/run_command.ts";
+import { Callback, getTopology } from "./utils.ts";
+import type { Document } from "./bson.ts";
+import type { CommandOperationOptions } from "./operations/command.ts";
+import type { Db } from "./db.ts";
 
 /** @internal */
 export interface AdminPrivate {
@@ -79,14 +72,10 @@ export class Admin {
     options?: RunCommandOptions | Callback<Document>,
     callback?: Callback<Document>
   ): Promise<Document> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
-    options = Object.assign({ dbName: 'admin' }, options);
+    if (typeof options === "function") (callback = options), (options = {});
+    options = Object.assign({ dbName: "admin" }, options);
 
-    return executeOperation(
-      getTopology(this.s.db),
-      new RunCommandOperation(this.s.db, command, options),
-      callback
-    );
+    return executeOperation(getTopology(this.s.db), new RunCommandOperation(this.s.db, command, options), callback);
   }
 
   /**
@@ -103,7 +92,7 @@ export class Admin {
     options?: CommandOperationOptions | Callback<Document>,
     callback?: Callback<Document>
   ): Promise<Document> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
     options = options ?? {};
     return this.command({ buildinfo: 1 }, options, callback as Callback<Document>);
   }
@@ -122,7 +111,7 @@ export class Admin {
     options?: CommandOperationOptions | Callback<Document>,
     callback?: Callback<Document>
   ): Promise<Document> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
     options = options ?? {};
     return this.command({ buildinfo: 1 }, options, callback as Callback<Document>);
   }
@@ -141,7 +130,7 @@ export class Admin {
     options?: CommandOperationOptions | Callback<Document>,
     callback?: Callback<Document>
   ): Promise<Document> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
     options = options ?? {};
     return this.command({ serverStatus: 1 }, options, callback as Callback<Document>);
   }
@@ -160,7 +149,7 @@ export class Admin {
     options?: CommandOperationOptions | Callback<Document>,
     callback?: Callback<Document>
   ): Promise<Document> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
     options = options ?? {};
     return this.command({ ping: 1 }, options, callback as Callback<Document>);
   }
@@ -180,31 +169,26 @@ export class Admin {
   addUser(username: string, options: AddUserOptions): Promise<Document>;
   addUser(username: string, options: AddUserOptions, callback: Callback<Document>): void;
   addUser(username: string, password: string, options: AddUserOptions): Promise<Document>;
-  addUser(
-    username: string,
-    password: string,
-    options: AddUserOptions,
-    callback: Callback<Document>
-  ): void;
+  addUser(username: string, password: string, options: AddUserOptions, callback: Callback<Document>): void;
   addUser(
     username: string,
     password?: string | AddUserOptions | Callback<Document>,
     options?: AddUserOptions | Callback<Document>,
     callback?: Callback<Document>
   ): Promise<Document> | void {
-    if (typeof password === 'function') {
+    if (typeof password === "function") {
       (callback = password), (password = undefined), (options = {});
-    } else if (typeof password !== 'string') {
-      if (typeof options === 'function') {
+    } else if (typeof password !== "string") {
+      if (typeof options === "function") {
         (callback = options), (options = password), (password = undefined);
       } else {
         (options = password), (callback = undefined), (password = undefined);
       }
     } else {
-      if (typeof options === 'function') (callback = options), (options = {});
+      if (typeof options === "function") (callback = options), (options = {});
     }
 
-    options = Object.assign({ dbName: 'admin' }, options);
+    options = Object.assign({ dbName: "admin" }, options);
 
     return executeOperation(
       getTopology(this.s.db),
@@ -229,14 +213,10 @@ export class Admin {
     options?: RemoveUserOptions | Callback<boolean>,
     callback?: Callback<boolean>
   ): Promise<boolean> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
-    options = Object.assign({ dbName: 'admin' }, options);
+    if (typeof options === "function") (callback = options), (options = {});
+    options = Object.assign({ dbName: "admin" }, options);
 
-    return executeOperation(
-      getTopology(this.s.db),
-      new RemoveUserOperation(this.s.db, username, options),
-      callback
-    );
+    return executeOperation(getTopology(this.s.db), new RemoveUserOperation(this.s.db, username, options), callback);
   }
 
   /**
@@ -249,17 +229,13 @@ export class Admin {
   validateCollection(collectionName: string): Promise<Document>;
   validateCollection(collectionName: string, callback: Callback<Document>): void;
   validateCollection(collectionName: string, options: ValidateCollectionOptions): Promise<Document>;
-  validateCollection(
-    collectionName: string,
-    options: ValidateCollectionOptions,
-    callback: Callback<Document>
-  ): void;
+  validateCollection(collectionName: string, options: ValidateCollectionOptions, callback: Callback<Document>): void;
   validateCollection(
     collectionName: string,
     options?: ValidateCollectionOptions | Callback<Document>,
     callback?: Callback<Document>
   ): Promise<Document> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
     options = options ?? {};
 
     return executeOperation(
@@ -283,14 +259,10 @@ export class Admin {
     options?: ListDatabasesOptions | Callback<ListDatabasesResult>,
     callback?: Callback<ListDatabasesResult>
   ): Promise<ListDatabasesResult> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
     options = options ?? {};
 
-    return executeOperation(
-      getTopology(this.s.db),
-      new ListDatabasesOperation(this.s.db, options),
-      callback
-    );
+    return executeOperation(getTopology(this.s.db), new ListDatabasesOperation(this.s.db, options), callback);
   }
 
   /**
@@ -307,7 +279,7 @@ export class Admin {
     options?: CommandOperationOptions | Callback<Document>,
     callback?: Callback<Document>
   ): Promise<Document> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
     options = options ?? {};
     return this.command({ replSetGetStatus: 1 }, options, callback as Callback<Document>);
   }

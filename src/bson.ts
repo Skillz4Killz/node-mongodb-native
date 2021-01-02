@@ -1,43 +1,20 @@
-import type { OperationParent } from './operations/command';
-// import type * as _BSON from 'bson';
-// let BSON: typeof _BSON = require('bson');
-// try {
-//   BSON = require('bson-ext');
-// } catch {} // eslint-disable-line
+import type { OperationParent } from './operations/command.ts';
+// import { SerializeOptions } from '../deps.ts';
 
-// export = BSON;
-
-export {
-  Long,
-  Binary,
-  ObjectId,
-  Timestamp,
-  Code,
-  MinKey,
-  MaxKey,
-  Decimal128,
-  Int32,
-  Double,
-  DBRef,
-  deserialize,
-  serialize,
-  calculateObjectSize
-} from 'bson';
 
 /** @public */
 export interface Document {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
 }
 
-import type { SerializeOptions } from 'bson';
 
 // TODO: Remove me when types from BSON are updated
+// export interface BSONSerializeOptions extends SerializeOptions {
 /**
  * BSON Serialization options.
  * @public
  */
-export interface BSONSerializeOptions extends SerializeOptions {
+export interface BSONSerializeOptions {
   /** Return document results as raw BSON buffers */
   fieldsAsRaw?: { [key: string]: boolean };
   /** Promotes BSON values to native types where possible, set to false to only receive wrapper types */

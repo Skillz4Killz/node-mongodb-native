@@ -1,10 +1,10 @@
-import { AbstractOperation, OperationOptions } from './operation';
-import { MongoError } from '../error';
-import type { Callback } from '../utils';
-import type { Document } from '../bson';
-import type { Collection } from '../collection';
-import type { Server } from '../sdam/server';
-import type { ClientSession } from '../sessions';
+import { AbstractOperation, OperationOptions } from './operation.ts';
+import { MongoError } from '../error.ts';
+import type { Callback } from '../utils.ts';
+import type { Document } from '../bson.ts';
+import type { Collection } from '../collection.ts';
+import type { Server } from '../sdam/server.ts';
+import type { ClientSession } from '../sessions.ts';
 
 /** @internal */
 export class OptionsOperation extends AbstractOperation<Document> {

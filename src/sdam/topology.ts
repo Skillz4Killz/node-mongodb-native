@@ -1,20 +1,13 @@
-import Denque = require('denque');
-import { EventEmitter } from 'events';
-import { ReadPreference, ReadPreferenceLike } from '../read_preference';
-import { ServerDescription } from './server_description';
-import { TopologyDescription } from './topology_description';
-import { Server, ServerOptions } from './server';
-import {
-  ClientSession,
-  ServerSessionPool,
-  ServerSessionId,
-  ClientSessionOptions
-} from '../sessions';
-import { SrvPoller, SrvPollingEvent } from './srv_polling';
-import { CMAP_EVENT_NAMES } from '../cmap/events';
-import { MongoError, MongoServerSelectionError, AnyError } from '../error';
-import { readPreferenceServerSelector, ServerSelector } from './server_selection';
-import { deprecate } from 'util';
+import { EventEmitter } from "../../deps.ts";
+import { ReadPreference, ReadPreferenceLike } from "../read_preference.ts";
+import { ServerDescription } from "./server_description.ts";
+import { TopologyDescription } from "./topology_description.ts";
+import { Server, ServerOptions } from "./server.ts";
+import { ClientSession, ServerSessionPool, ServerSessionId, ClientSessionOptions } from "../sessions.ts";
+import { SrvPoller, SrvPollingEvent } from "./srv_polling.ts";
+import { CMAP_EVENT_NAMES } from "../cmap/events.ts";
+import { MongoError, MongoServerSelectionError, AnyError } from "../error.ts";
+import { readPreferenceServerSelector, ServerSelector } from "./server_selection.ts";
 import {
   relayEvents,
   makeStateMachine,
@@ -23,8 +16,8 @@ import {
   emitDeprecatedOptionWarning,
   ClientMetadata,
   Callback,
-  ns
-} from '../utils';
+  ns,
+} from "../utils.ts";
 import {
   TopologyType,
   ServerType,
@@ -37,23 +30,23 @@ import {
   STATE_CLOSING,
   STATE_CONNECTING,
   STATE_CONNECTED,
-  TOPOLOGY_DEFAULTS
-} from './common';
+  TOPOLOGY_DEFAULTS,
+} from "./common.ts";
 import {
   ServerOpeningEvent,
   ServerClosedEvent,
   ServerDescriptionChangedEvent,
   TopologyOpeningEvent,
   TopologyClosedEvent,
-  TopologyDescriptionChangedEvent
-} from './events';
-import type { Document, BSONSerializeOptions } from '../bson';
-import type { MongoCredentials } from '../cmap/auth/mongo_credentials';
-import type { Transaction } from '../transactions';
-import type { CloseOptions } from '../cmap/connection_pool';
-import type { LoggerOptions } from '../logger';
-import { DestroyOptions, Connection } from '../cmap/connection';
-import type { MongoClientOptions } from '../mongo_client';
+  TopologyDescriptionChangedEvent,
+} from "./events.ts";
+import type { Document, BSONSerializeOptions } from "../bson.ts";
+import type { MongoCredentials } from "../cmap/auth/mongo_credentials.ts";
+import type { Transaction } from "../transactions.ts";
+import type { CloseOptions } from "../cmap/connection_pool.ts";
+import type { LoggerOptions } from "../logger.ts";
+import { DestroyOptions, Connection } from "../cmap/connection.ts";
+import type { MongoClientOptions } from "../mongo_client.ts";
 
 // Global state
 let globalTopologyCounter = 0;
@@ -68,21 +61,21 @@ const SERVER_RELAY_EVENTS = [
   Connection.COMMAND_FAILED,
 
   // NOTE: Legacy events
-  'monitoring'
+  "monitoring",
 ].concat(CMAP_EVENT_NAMES);
 
 // all events we listen to from `Server` instances
-const LOCAL_SERVER_EVENTS = ['connect', 'descriptionReceived', 'closed', 'ended'];
+const LOCAL_SERVER_EVENTS = ["connect", "descriptionReceived", "closed", "ended"];
 
 const stateTransition = makeStateMachine({
   [STATE_CLOSED]: [STATE_CLOSED, STATE_CONNECTING],
   [STATE_CONNECTING]: [STATE_CONNECTING, STATE_CLOSING, STATE_CONNECTED, STATE_CLOSED],
   [STATE_CONNECTED]: [STATE_CONNECTED, STATE_CLOSING, STATE_CLOSED],
-  [STATE_CLOSING]: [STATE_CLOSING, STATE_CLOSED]
+  [STATE_CLOSING]: [STATE_CLOSING, STATE_CLOSED],
 });
 
-const kCancelled = Symbol('cancelled');
-const kWaitQueue = Symbol('waitQueue');
+const kCancelled = Symbol("cancelled");
+const kWaitQueue = Symbol("waitQueue");
 
 /** @public */
 export type ServerSelectionCallback = Callback<Server>;
@@ -187,33 +180,33 @@ export class Topology extends EventEmitter {
   _type?: string;
 
   /** @event */
-  static readonly SERVER_OPENING = 'serverOpening' as const;
+  static readonly SERVER_OPENING = "serverOpening" as const;
   /** @event */
-  static readonly SERVER_CLOSED = 'serverClosed' as const;
+  static readonly SERVER_CLOSED = "serverClosed" as const;
   /** @event */
-  static readonly SERVER_DESCRIPTION_CHANGED = 'serverDescriptionChanged' as const;
+  static readonly SERVER_DESCRIPTION_CHANGED = "serverDescriptionChanged" as const;
   /** @event */
-  static readonly TOPOLOGY_OPENING = 'topologyOpening' as const;
+  static readonly TOPOLOGY_OPENING = "topologyOpening" as const;
   /** @event */
-  static readonly TOPOLOGY_CLOSED = 'topologyClosed' as const;
+  static readonly TOPOLOGY_CLOSED = "topologyClosed" as const;
   /** @event */
-  static readonly TOPOLOGY_DESCRIPTION_CHANGED = 'topologyDescriptionChanged' as const;
+  static readonly TOPOLOGY_DESCRIPTION_CHANGED = "topologyDescriptionChanged" as const;
   /** @event */
-  static readonly ERROR = 'error' as const;
+  static readonly ERROR = "error" as const;
   /** @event */
-  static readonly OPEN = 'open' as const;
+  static readonly OPEN = "open" as const;
   /** @event */
-  static readonly CONNECT = 'connect' as const;
+  static readonly CONNECT = "connect" as const;
 
   /**
    * @param seedlist - a string list, or array of ServerAddress instances to connect to
    */
   constructor(seedlist: string | ServerAddress[], options?: TopologyOptions) {
     super();
-    emitDeprecatedOptionWarning(options, ['promiseLibrary']);
+    emitDeprecatedOptionWarning(options, ["promiseLibrary"]);
 
     seedlist = seedlist || [];
-    if (typeof seedlist === 'string') {
+    if (typeof seedlist === "string") {
       seedlist = parseStringSeedlist(seedlist);
     } else if (!Array.isArray(seedlist)) {
       seedlist = [seedlist];
@@ -223,21 +216,18 @@ export class Topology extends EventEmitter {
     options = Object.freeze(
       Object.assign(options, {
         metadata: makeClientMetadata(options),
-        compression: { compressors: makeCompressionInfo(options) }
+        compression: { compressors: makeCompressionInfo(options) },
       })
     );
 
     const topologyType = topologyTypeFromOptions(options);
     const topologyId = globalTopologyCounter++;
-    const serverDescriptions = seedlist.reduce(
-      (result: Map<string, ServerDescription>, seed: ServerAddress) => {
-        if (seed.domain_socket) seed.host = seed.domain_socket;
-        const address = seed.port ? `${seed.host}:${seed.port}` : `${seed.host}:27017`;
-        result.set(address, new ServerDescription(address));
-        return result;
-      },
-      new Map<string, ServerDescription>()
-    );
+    const serverDescriptions = seedlist.reduce((result: Map<string, ServerDescription>, seed: ServerAddress) => {
+      if (seed.domain_socket) seed.host = seed.domain_socket;
+      const address = seed.port ? `${seed.host}:${seed.port}` : `${seed.host}:27017`;
+      result.set(address, new ServerDescription(address));
+      return result;
+    }, new Map<string, ServerDescription>());
 
     this[kWaitQueue] = new Denque();
     this.s = {
@@ -272,7 +262,7 @@ export class Topology extends EventEmitter {
       clusterTime: undefined,
 
       // timer management
-      connectionTimers: new Set<NodeJS.Timeout>()
+      connectionTimers: new Set<NodeJS.Timeout>(),
     };
 
     if (options.srvHost) {
@@ -280,7 +270,7 @@ export class Topology extends EventEmitter {
         options.srvPoller ||
         new SrvPoller({
           heartbeatFrequencyMS: this.s.heartbeatFrequencyMS,
-          srvHost: options.srvHost
+          srvHost: options.srvHost,
         });
 
       this.s.detectTopologyDescriptionChange = (ev: TopologyDescriptionChangedEvent) => {
@@ -291,7 +281,7 @@ export class Topology extends EventEmitter {
           this.s.handleSrvPolling = srvPollingHandler(this);
           if (this.s.srvPoller) {
             // TODO: it looks like there is a bug here, what if this happens twice?
-            this.s.srvPoller.on('srvRecordDiscovery', this.s.handleSrvPolling);
+            this.s.srvPoller.on("srvRecordDiscovery", this.s.handleSrvPolling);
             this.s.srvPoller.start();
           }
         }
@@ -317,10 +307,10 @@ export class Topology extends EventEmitter {
 
   /** Initiate server connect */
   connect(options?: ConnectOptions, callback?: Callback): void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
     options = options ?? {};
     if (this.s.state === STATE_CONNECTED) {
-      if (typeof callback === 'function') {
+      if (typeof callback === "function") {
         callback();
       }
 
@@ -351,15 +341,15 @@ export class Topology extends EventEmitter {
       if (err) {
         this.close();
 
-        typeof callback === 'function' ? callback(err) : this.emit(Topology.ERROR, err);
+        typeof callback === "function" ? callback(err) : this.emit(Topology.ERROR, err);
         return;
       }
 
       // TODO: NODE-2471
       if (server && this.s.credentials) {
-        server.command(ns('admin.$cmd'), { ping: 1 }, err => {
+        server.command(ns("admin.$cmd"), { ping: 1 }, (err) => {
           if (err) {
-            typeof callback === 'function' ? callback(err) : this.emit(Topology.ERROR, err);
+            typeof callback === "function" ? callback(err) : this.emit(Topology.ERROR, err);
             return;
           }
 
@@ -367,7 +357,7 @@ export class Topology extends EventEmitter {
           this.emit(Topology.OPEN, err, this);
           this.emit(Topology.CONNECT, this);
 
-          if (typeof callback === 'function') callback(undefined, this);
+          if (typeof callback === "function") callback(undefined, this);
         });
 
         return;
@@ -377,24 +367,24 @@ export class Topology extends EventEmitter {
       this.emit(Topology.OPEN, err, this);
       this.emit(Topology.CONNECT, this);
 
-      if (typeof callback === 'function') callback(undefined, this);
+      if (typeof callback === "function") callback(undefined, this);
     });
   }
 
   /** Close this topology */
   close(options?: CloseOptions, callback?: Callback): void {
-    if (typeof options === 'function') {
+    if (typeof options === "function") {
       callback = options;
       options = {};
     }
 
-    if (typeof options === 'boolean') {
+    if (typeof options === "boolean") {
       options = { force: options };
     }
 
     options = options ?? {};
     if (this.s.state === STATE_CLOSED || this.s.state === STATE_CLOSING) {
-      if (typeof callback === 'function') {
+      if (typeof callback === "function") {
         callback();
       }
 
@@ -403,22 +393,19 @@ export class Topology extends EventEmitter {
 
     stateTransition(this, STATE_CLOSING);
 
-    drainWaitQueue(this[kWaitQueue], new MongoError('Topology closed'));
+    drainWaitQueue(this[kWaitQueue], new MongoError("Topology closed"));
     drainTimerQueue(this.s.connectionTimers);
 
     if (this.s.srvPoller) {
       this.s.srvPoller.stop();
       if (this.s.handleSrvPolling) {
-        this.s.srvPoller.removeListener('srvRecordDiscovery', this.s.handleSrvPolling);
+        this.s.srvPoller.removeListener("srvRecordDiscovery", this.s.handleSrvPolling);
         delete this.s.handleSrvPolling;
       }
     }
 
     if (this.s.detectTopologyDescriptionChange) {
-      this.removeListener(
-        Topology.SERVER_DESCRIPTION_CHANGED,
-        this.s.detectTopologyDescriptionChange
-      );
+      this.removeListener(Topology.SERVER_DESCRIPTION_CHANGED, this.s.detectTopologyDescriptionChange);
       delete this.s.detectTopologyDescriptionChange;
     }
 
@@ -427,16 +414,16 @@ export class Topology extends EventEmitter {
       eachAsync(
         Array.from(this.s.servers.values()),
         (server: Server, cb: Callback) => destroyServer(server, this, options, cb),
-        err => {
+        (err) => {
           this.s.servers.clear();
 
           // emit an event for close
           this.emit(Topology.TOPOLOGY_CLOSED, new TopologyClosedEvent(this.s.id));
 
           stateTransition(this, STATE_CLOSED);
-          this.emit('close');
+          this.emit("close");
 
-          if (typeof callback === 'function') {
+          if (typeof callback === "function") {
             callback(err);
           }
         }
@@ -453,10 +440,7 @@ export class Topology extends EventEmitter {
    * @returns An instance of a `Server` meeting the criteria of the predicate provided
    */
   selectServer(options: SelectServerOptions, callback: Callback<Server>): void;
-  selectServer(
-    selector: string | ReadPreference | ServerSelector,
-    callback: Callback<Server>
-  ): void;
+  selectServer(selector: string | ReadPreference | ServerSelector, callback: Callback<Server>): void;
   selectServer(
     selector: string | ReadPreference | ServerSelector,
     options: SelectServerOptions,
@@ -469,13 +453,13 @@ export class Topology extends EventEmitter {
   ): void {
     let options = _options as SelectServerOptions;
     const callback = (_callback ?? _options) as Callback<Server>;
-    if (typeof options === 'function') {
+    if (typeof options === "function") {
       options = {};
     }
 
     let serverSelector;
-    if (typeof selector !== 'function') {
-      if (typeof selector === 'string') {
+    if (typeof selector !== "function") {
+      if (typeof selector === "string") {
         serverSelector = readPreferenceServerSelector(ReadPreference.fromString(selector));
       } else {
         let readPreference;
@@ -492,11 +476,7 @@ export class Topology extends EventEmitter {
       serverSelector = selector;
     }
 
-    options = Object.assign(
-      {},
-      { serverSelectionTimeoutMS: this.s.serverSelectionTimeoutMS },
-      options
-    );
+    options = Object.assign({}, { serverSelectionTimeoutMS: this.s.serverSelectionTimeoutMS }, options);
 
     const isSharded = this.description.type === TopologyType.Sharded;
     const session = options.session;
@@ -510,7 +490,7 @@ export class Topology extends EventEmitter {
     const waitQueueMember: ServerSelectionRequest = {
       serverSelector,
       transaction,
-      callback
+      callback,
     };
 
     const serverSelectionTimeoutMS = options.serverSelectionTimeoutMS;
@@ -554,7 +534,7 @@ export class Topology extends EventEmitter {
   /** Start a logical session */
   startSession(options: ClientSessionOptions, clientOptions?: MongoClientOptions): ClientSession {
     const session = new ClientSession(this, this.s.sessionPool, options, clientOptions);
-    session.once('ended', () => {
+    session.once("ended", () => {
       this.s.sessions.delete(session);
     });
 
@@ -568,24 +548,16 @@ export class Topology extends EventEmitter {
       sessions = [sessions];
     }
 
-    this.selectServer(
-      readPreferenceServerSelector(ReadPreference.primaryPreferred),
-      (err, server) => {
-        if (err || !server) {
-          if (typeof callback === 'function') callback(err);
-          return;
-        }
-
-        server.command(
-          ns('admin.$cmd'),
-          { endSessions: sessions },
-          { noResponse: true },
-          (err, result) => {
-            if (typeof callback === 'function') callback(err, result);
-          }
-        );
+    this.selectServer(readPreferenceServerSelector(ReadPreference.primaryPreferred), (err, server) => {
+      if (err || !server) {
+        if (typeof callback === "function") callback(err);
+        return;
       }
-    );
+
+      server.command(ns("admin.$cmd"), { endSessions: sessions }, { noResponse: true }, (err, result) => {
+        if (typeof callback === "function") callback(err, result);
+      });
+    });
   }
 
   /**
@@ -619,8 +591,7 @@ export class Topology extends EventEmitter {
     // If we already know all the information contained in this updated description, then
     // we don't need to emit SDAM events, but still need to update the description, in order
     // to keep client-tracked attributes like last update time and round trip time up to date
-    const equalDescriptions =
-      previousServerDescription && previousServerDescription.equals(serverDescription);
+    const equalDescriptions = previousServerDescription && previousServerDescription.equals(serverDescription);
 
     // first update the TopologyDescription
     this.s.description = this.s.description.update(serverDescription);
@@ -656,22 +627,18 @@ export class Topology extends EventEmitter {
     if (!equalDescriptions) {
       this.emit(
         Topology.TOPOLOGY_DESCRIPTION_CHANGED,
-        new TopologyDescriptionChangedEvent(
-          this.s.id,
-          previousTopologyDescription,
-          this.s.description
-        )
+        new TopologyDescriptionChangedEvent(this.s.id, previousTopologyDescription, this.s.description)
       );
     }
   }
 
   auth(credentials?: MongoCredentials, callback?: Callback): void {
-    if (typeof credentials === 'function') (callback = credentials), (credentials = undefined);
-    if (typeof callback === 'function') callback(undefined, true);
+    if (typeof credentials === "function") (callback = credentials), (credentials = undefined);
+    if (typeof callback === "function") callback(undefined, true);
   }
 
   logout(callback: Callback): void {
-    if (typeof callback === 'function') callback(undefined, true);
+    if (typeof callback === "function") callback(undefined, true);
   }
 
   get clientMetadata(): ClientMetadata {
@@ -687,7 +654,7 @@ export class Topology extends EventEmitter {
   }
 
   unref(): void {
-    console.log('not implemented: `unref`');
+    console.log("not implemented: `unref`");
   }
 
   // NOTE: There are many places in code where we explicitly check the last isMaster
@@ -696,9 +663,7 @@ export class Topology extends EventEmitter {
   lastIsMaster(): Document {
     const serverDescriptions = Array.from(this.description.servers.values());
     if (serverDescriptions.length === 0) return {};
-    const sd = serverDescriptions.filter(
-      (sd: ServerDescription) => sd.type !== ServerType.Unknown
-    )[0];
+    const sd = serverDescriptions.filter((sd: ServerDescription) => sd.type !== ServerType.Unknown)[0];
 
     const result = sd || { maxWireVersion: this.description.commonWireVersion };
     return result;
@@ -717,30 +682,19 @@ export class Topology extends EventEmitter {
   }
 
   // legacy aliases
-  destroy = deprecate(
-    Topology.prototype.close,
-    'destroy() is deprecated, please use close() instead'
-  );
+  destroy = deprecate(Topology.prototype.close, "destroy() is deprecated, please use close() instead");
 }
 
 /** Destroys a server, and removes all event listeners from the instance */
-function destroyServer(
-  server: Server,
-  topology: Topology,
-  options?: DestroyOptions,
-  callback?: Callback
-) {
+function destroyServer(server: Server, topology: Topology, options?: DestroyOptions, callback?: Callback) {
   options = options ?? {};
   LOCAL_SERVER_EVENTS.forEach((event: string) => server.removeAllListeners(event));
 
   server.destroy(options, () => {
-    topology.emit(
-      Topology.SERVER_CLOSED,
-      new ServerClosedEvent(topology.s.id, server.description.address)
-    );
+    topology.emit(Topology.SERVER_CLOSED, new ServerClosedEvent(topology.s.id, server.description.address));
 
     SERVER_RELAY_EVENTS.forEach((event: string) => server.removeAllListeners(event));
-    if (typeof callback === 'function') {
+    if (typeof callback === "function") {
       callback();
     }
   });
@@ -752,9 +706,9 @@ function destroyServer(
  * @param seedlist - The seedlist to parse
  */
 function parseStringSeedlist(seedlist: string): ServerAddress[] {
-  return seedlist.split(',').map((seed: string) => ({
-    host: seed.split(':')[0],
-    port: parseInt(seed.split(':')[1], 10) || 27017
+  return seedlist.split(",").map((seed: string) => ({
+    host: seed.split(":")[0],
+    port: parseInt(seed.split(":")[1], 10) || 27017,
   }));
 }
 
@@ -782,15 +736,8 @@ function randomSelection(array: ServerDescription[]): ServerDescription {
  * @param serverDescription - The description for the server to initialize and connect to
  * @param connectDelay - Time to wait before attempting initial connection
  */
-function createAndConnectServer(
-  topology: Topology,
-  serverDescription: ServerDescription,
-  connectDelay?: number
-) {
-  topology.emit(
-    Topology.SERVER_OPENING,
-    new ServerOpeningEvent(topology.s.id, serverDescription.address)
-  );
+function createAndConnectServer(topology: Topology, serverDescription: ServerDescription, connectDelay?: number) {
+  topology.emit(Topology.SERVER_OPENING, new ServerOpeningEvent(topology.s.id, serverDescription.address));
 
   const server = new Server(topology, serverDescription, topology.s.options);
   relayEvents(server, topology, SERVER_RELAY_EVENTS);
@@ -884,11 +831,7 @@ function srvPollingHandler(topology: Topology) {
 
     topology.emit(
       Topology.SERVER_DESCRIPTION_CHANGED,
-      new TopologyDescriptionChangedEvent(
-        topology.s.id,
-        previousTopologyDescription,
-        topology.s.description
-      )
+      new TopologyDescriptionChangedEvent(topology.s.id, previousTopologyDescription, topology.s.description)
     );
   };
 }
@@ -912,7 +855,7 @@ function drainWaitQueue(queue: Denque<ServerSelectionRequest>, err?: AnyError) {
 
 function processWaitQueue(topology: Topology) {
   if (topology.s.state === STATE_CLOSED) {
-    drainWaitQueue(topology[kWaitQueue], new MongoError('Topology is closed, please connect'));
+    drainWaitQueue(topology[kWaitQueue], new MongoError("Topology is closed, please connect"));
     return;
   }
 
@@ -976,8 +919,8 @@ function makeCompressionInfo(options: TopologyOptions) {
 
   // Check that all supplied compressors are valid
   options.compression.compressors.forEach((compressor: string) => {
-    if (compressor !== 'snappy' && compressor !== 'zlib') {
-      throw new Error('compressors must be at least one of snappy or zlib');
+    if (compressor !== "snappy" && compressor !== "zlib") {
+      throw new Error("compressors must be at least one of snappy or zlib");
     }
   });
 

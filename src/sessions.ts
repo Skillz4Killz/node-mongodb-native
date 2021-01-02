@@ -1,34 +1,25 @@
-import { PromiseProvider } from './promise_provider';
-import { EventEmitter } from 'events';
-import { Binary, Long, Timestamp, Document } from './bson';
-import { ReadPreference } from './read_preference';
-import { isTransactionCommand, TxnState, Transaction, TransactionOptions } from './transactions';
-import { resolveClusterTime, ClusterTime } from './sdam/common';
-import { isSharded } from './cmap/wire_protocol/shared';
-import { MongoError, isRetryableError, MongoNetworkError, MongoWriteConcernError } from './error';
-import {
-  now,
-  calculateDurationInMs,
-  Callback,
-  isPromiseLike,
-  uuidV4,
-  maxWireVersion,
-  maybePromise
-} from './utils';
-import type { Topology } from './sdam/topology';
-import type { MongoClientOptions } from './mongo_client';
-import { executeOperation } from './operations/execute_operation';
-import { RunAdminCommandOperation } from './operations/run_command';
-import type { AbstractCursor } from './cursor/abstract_cursor';
-import type { CommandOptions } from './cmap/connection';
-import type { WriteConcern } from './write_concern';
+import { PromiseProvider } from "./promise_provider.ts";
+import { EventEmitter, Binary, Long, Timestamp, Document } from "../deps.ts";
+import { ReadPreference } from "./read_preference.ts";
+import { isTransactionCommand, TxnState, Transaction, TransactionOptions } from "./transactions.ts";
+import { resolveClusterTime, ClusterTime } from "./sdam/common.ts";
+import { isSharded } from "./cmap/wire_protocol/shared.ts";
+import { MongoError, isRetryableError, MongoNetworkError, MongoWriteConcernError } from "./error.ts";
+import { now, calculateDurationInMs, Callback, isPromiseLike, uuidV4, maxWireVersion, maybePromise } from "./utils.ts";
+import type { Topology } from "./sdam/topology.ts";
+import type { MongoClientOptions } from "./mongo_client.ts";
+import { executeOperation } from "./operations/execute_operation.ts";
+import { RunAdminCommandOperation } from "./operations/run_command.ts";
+import type { AbstractCursor } from "./cursor/abstract_cursor.ts";
+import type { CommandOptions } from "./cmap/connection.ts";
+import type { WriteConcern } from "./write_concern.ts";
 
 const minWireVersionForShardedTransactions = 8;
 
 function assertAlive(session: ClientSession, callback?: Callback): boolean {
   if (session.serverSession == null) {
-    const error = new MongoError('Cannot use a session that has ended');
-    if (typeof callback === 'function') {
+    const error = new MongoError("Cannot use a session that has ended");
+    if (typeof callback === "function") {
       callback(error);
       return false;
     }
@@ -57,7 +48,7 @@ export interface ClientSessionOptions {
 /** @public */
 export type WithTransactionCallback = (session: ClientSession) => Promise<any> | void;
 
-const kServerSession = Symbol('serverSession');
+const kServerSession = Symbol("serverSession");
 
 /**
  * A class representing a client session on the server
@@ -97,11 +88,11 @@ class ClientSession extends EventEmitter {
     super();
 
     if (topology == null) {
-      throw new Error('ClientSession requires a topology');
+      throw new Error("ClientSession requires a topology");
     }
 
     if (sessionPool == null || !(sessionPool instanceof ServerSessionPool)) {
-      throw new Error('ClientSession requires a ServerSessionPool');
+      throw new Error("ClientSession requires a ServerSessionPool");
     }
 
     options = options ?? {};
@@ -114,8 +105,7 @@ class ClientSession extends EventEmitter {
     this[kServerSession] = undefined;
 
     this.supports = {
-      causalConsistency:
-        typeof options.causalConsistency === 'boolean' ? options.causalConsistency : true
+      causalConsistency: typeof options.causalConsistency === "boolean" ? options.causalConsistency : true,
     };
 
     this.clusterTime = options.initialClusterTime;
@@ -151,14 +141,11 @@ class ClientSession extends EventEmitter {
   endSession(callback: Callback<void>): void;
   endSession(options: Record<string, unknown>): Promise<void>;
   endSession(options: Record<string, unknown>, callback: Callback<void>): void;
-  endSession(
-    options?: Record<string, unknown> | Callback<void>,
-    callback?: Callback<void>
-  ): void | Promise<void> {
-    if (typeof options === 'function') (callback = options), (options = {});
+  endSession(options?: Record<string, unknown> | Callback<void>, callback?: Callback<void>): void | Promise<void> {
+    if (typeof options === "function") (callback = options), (options = {});
     options = options ?? {};
 
-    return maybePromise(callback, done => {
+    return maybePromise(callback, (done) => {
       if (this.hasEnded) {
         return done();
       }
@@ -170,14 +157,14 @@ class ClientSession extends EventEmitter {
 
         // mark the session as ended, and emit a signal
         this.hasEnded = true;
-        this.emit('ended', this);
+        this.emit("ended", this);
 
         // spec indicates that we should ignore all errors for `endSessions`
         done();
       };
 
       if (this.serverSession && this.inTransaction()) {
-        this.abortTransaction(err => {
+        this.abortTransaction((err) => {
           if (err) return done(err);
           completeEndSession();
         });
@@ -226,7 +213,7 @@ class ClientSession extends EventEmitter {
   incrementTransactionNumber(): void {
     if (this.serverSession) {
       this.serverSession.txnNumber =
-        typeof this.serverSession.txnNumber === 'number' ? this.serverSession.txnNumber + 1 : 0;
+        typeof this.serverSession.txnNumber === "number" ? this.serverSession.txnNumber + 1 : 0;
     }
   }
 
@@ -243,7 +230,7 @@ class ClientSession extends EventEmitter {
   startTransaction(options?: TransactionOptions): void {
     assertAlive(this);
     if (this.inTransaction()) {
-      throw new MongoError('Transaction already in progress');
+      throw new MongoError("Transaction already in progress");
     }
 
     const topologyMaxWireVersion = maxWireVersion(this.topology);
@@ -252,7 +239,7 @@ class ClientSession extends EventEmitter {
       topologyMaxWireVersion != null &&
       topologyMaxWireVersion < minWireVersionForShardedTransactions
     ) {
-      throw new MongoError('Transactions are not supported on sharded clusters in MongoDB < 4.2.');
+      throw new MongoError("Transactions are not supported on sharded clusters in MongoDB < 4.2.");
     }
 
     // increment txnNumber
@@ -274,7 +261,7 @@ class ClientSession extends EventEmitter {
   commitTransaction(): Promise<Document>;
   commitTransaction(callback: Callback<Document>): void;
   commitTransaction(callback?: Callback<Document>): Promise<Document> | void {
-    return maybePromise(callback, cb => endTransaction(this, 'commitTransaction', cb));
+    return maybePromise(callback, (cb) => endTransaction(this, "commitTransaction", cb));
   }
 
   /**
@@ -285,14 +272,14 @@ class ClientSession extends EventEmitter {
   abortTransaction(): Promise<Document>;
   abortTransaction(callback: Callback<Document>): void;
   abortTransaction(callback?: Callback<Document>): Promise<Document> | void {
-    return maybePromise(callback, cb => endTransaction(this, 'abortTransaction', cb));
+    return maybePromise(callback, (cb) => endTransaction(this, "abortTransaction", cb));
   }
 
   /**
    * This is here to ensure that ClientSession is never serialized to BSON.
    */
   toBSON(): void {
-    throw new Error('ClientSession cannot be serialized to BSON.');
+    throw new Error("ClientSession cannot be serialized to BSON.");
   }
 
   /**
@@ -317,9 +304,9 @@ const UNSATISFIABLE_WRITE_CONCERN_CODE = 100;
 const UNKNOWN_REPL_WRITE_CONCERN_CODE = 79;
 const MAX_TIME_MS_EXPIRED_CODE = 50;
 const NON_DETERMINISTIC_WRITE_CONCERN_ERRORS = new Set([
-  'CannotSatisfyWriteConcern',
-  'UnknownReplWriteConcern',
-  'UnsatisfiableWriteConcern'
+  "CannotSatisfyWriteConcern",
+  "UnknownReplWriteConcern",
+  "UnsatisfiableWriteConcern",
 ]);
 
 function hasNotTimedOut(startTime: number, max: number) {
@@ -327,8 +314,7 @@ function hasNotTimedOut(startTime: number, max: number) {
 }
 
 function isUnknownTransactionCommitResult(err: MongoError) {
-  const isNonDeterministicWriteConcernError =
-    err.codeName && NON_DETERMINISTIC_WRITE_CONCERN_ERRORS.has(err.codeName);
+  const isNonDeterministicWriteConcernError = err.codeName && NON_DETERMINISTIC_WRITE_CONCERN_ERRORS.has(err.codeName);
 
   return (
     isMaxTimeMSExpiredError(err) ||
@@ -361,11 +347,11 @@ function attemptTransactionCommit(
       hasNotTimedOut(startTime, MAX_WITH_TRANSACTION_TIMEOUT) &&
       !isMaxTimeMSExpiredError(err)
     ) {
-      if (err.hasErrorLabel('UnknownTransactionCommitResult')) {
+      if (err.hasErrorLabel("UnknownTransactionCommitResult")) {
         return attemptTransactionCommit(session, startTime, fn, options);
       }
 
-      if (err.hasErrorLabel('TransientTransactionError')) {
+      if (err.hasErrorLabel("TransientTransactionError")) {
         return attemptTransaction(session, startTime, fn, options);
       }
     }
@@ -377,7 +363,7 @@ function attemptTransactionCommit(
 const USER_EXPLICIT_TXN_END_STATES = new Set([
   TxnState.NO_TRANSACTION,
   TxnState.TRANSACTION_COMMITTED,
-  TxnState.TRANSACTION_ABORTED
+  TxnState.TRANSACTION_ABORTED,
 ]);
 
 function userExplicitlyEndedTransaction(session: ClientSession) {
@@ -402,7 +388,7 @@ function attemptTransaction(
 
   if (!isPromiseLike(promise)) {
     session.abortTransaction();
-    throw new TypeError('Function provided to `withTransaction` must return a Promise');
+    throw new TypeError("Function provided to `withTransaction` must return a Promise");
   }
 
   return promise.then(
@@ -413,18 +399,18 @@ function attemptTransaction(
 
       return attemptTransactionCommit(session, startTime, fn, options);
     },
-    err => {
+    (err) => {
       function maybeRetryOrThrow(err: MongoError): Promise<any> {
         if (
           err instanceof MongoError &&
-          err.hasErrorLabel('TransientTransactionError') &&
+          err.hasErrorLabel("TransientTransactionError") &&
           hasNotTimedOut(startTime, MAX_WITH_TRANSACTION_TIMEOUT)
         ) {
           return attemptTransaction(session, startTime, fn, options);
         }
 
         if (isMaxTimeMSExpiredError(err)) {
-          err.addErrorLabel('UnknownTransactionCommitResult');
+          err.addErrorLabel("UnknownTransactionCommitResult");
         }
 
         throw err;
@@ -449,15 +435,12 @@ function endTransaction(session: ClientSession, commandName: string, callback: C
   const txnState = session.transaction.state;
 
   if (txnState === TxnState.NO_TRANSACTION) {
-    callback(new MongoError('No transaction started'));
+    callback(new MongoError("No transaction started"));
     return;
   }
 
-  if (commandName === 'commitTransaction') {
-    if (
-      txnState === TxnState.STARTING_TRANSACTION ||
-      txnState === TxnState.TRANSACTION_COMMITTED_EMPTY
-    ) {
+  if (commandName === "commitTransaction") {
+    if (txnState === TxnState.STARTING_TRANSACTION || txnState === TxnState.TRANSACTION_COMMITTED_EMPTY) {
       // the transaction was never started, we can safely exit here
       session.transaction.transition(TxnState.TRANSACTION_COMMITTED_EMPTY);
       callback();
@@ -465,7 +448,7 @@ function endTransaction(session: ClientSession, commandName: string, callback: C
     }
 
     if (txnState === TxnState.TRANSACTION_ABORTED) {
-      callback(new MongoError('Cannot call commitTransaction after calling abortTransaction'));
+      callback(new MongoError("Cannot call commitTransaction after calling abortTransaction"));
       return;
     }
   } else {
@@ -477,15 +460,12 @@ function endTransaction(session: ClientSession, commandName: string, callback: C
     }
 
     if (txnState === TxnState.TRANSACTION_ABORTED) {
-      callback(new MongoError('Cannot call abortTransaction twice'));
+      callback(new MongoError("Cannot call abortTransaction twice"));
       return;
     }
 
-    if (
-      txnState === TxnState.TRANSACTION_COMMITTED ||
-      txnState === TxnState.TRANSACTION_COMMITTED_EMPTY
-    ) {
-      callback(new MongoError('Cannot call abortTransaction after calling commitTransaction'));
+    if (txnState === TxnState.TRANSACTION_COMMITTED || txnState === TxnState.TRANSACTION_COMMITTED_EMPTY) {
+      callback(new MongoError("Cannot call abortTransaction after calling commitTransaction"));
       return;
     }
   }
@@ -502,19 +482,19 @@ function endTransaction(session: ClientSession, commandName: string, callback: C
   }
 
   if (txnState === TxnState.TRANSACTION_COMMITTED) {
-    writeConcern = Object.assign({ wtimeout: 10000 }, writeConcern, { w: 'majority' });
+    writeConcern = Object.assign({ wtimeout: 10000 }, writeConcern, { w: "majority" });
   }
 
   if (writeConcern) {
     Object.assign(command, { writeConcern });
   }
 
-  if (commandName === 'commitTransaction' && session.transaction.options.maxTimeMS) {
+  if (commandName === "commitTransaction" && session.transaction.options.maxTimeMS) {
     Object.assign(command, { maxTimeMS: session.transaction.options.maxTimeMS });
   }
 
   function commandHandler(e?: MongoError, r?: Document) {
-    if (commandName === 'commitTransaction') {
+    if (commandName === "commitTransaction") {
       session.transaction.transition(TxnState.TRANSACTION_COMMITTED);
 
       if (
@@ -525,7 +505,7 @@ function endTransaction(session: ClientSession, commandName: string, callback: C
           isMaxTimeMSExpiredError(e))
       ) {
         if (isUnknownTransactionCommitResult(e)) {
-          e.addErrorLabel('UnknownTransactionCommitResult');
+          e.addErrorLabel("UnknownTransactionCommitResult");
 
           // per txns spec, must unpin session in this case
           session.transaction.unpinServer();
@@ -551,7 +531,7 @@ function endTransaction(session: ClientSession, commandName: string, callback: C
     session.topology,
     new RunAdminCommandOperation(undefined, command, {
       session,
-      readPreference: ReadPreference.primary
+      readPreference: ReadPreference.primary,
     }),
     (err, reply) => {
       if (err && isRetryableError(err as MongoError)) {
@@ -561,7 +541,7 @@ function endTransaction(session: ClientSession, commandName: string, callback: C
           session.transaction.unpinServer();
 
           command.writeConcern = Object.assign({ wtimeout: 10000 }, command.writeConcern, {
-            w: 'majority'
+            w: "majority",
           });
         }
 
@@ -569,7 +549,7 @@ function endTransaction(session: ClientSession, commandName: string, callback: C
           session.topology,
           new RunAdminCommandOperation(undefined, command, {
             session,
-            readPreference: ReadPreference.primary
+            readPreference: ReadPreference.primary,
           }),
           (_err, _reply) => commandHandler(_err as MongoError, _reply)
         );
@@ -617,9 +597,7 @@ class ServerSession {
   hasTimedOut(sessionTimeoutMinutes: number): boolean {
     // Take the difference of the lastUse timestamp and now, which will result in a value in
     // milliseconds, and then convert milliseconds to minutes to compare to `sessionTimeoutMinutes`
-    const idleTimeMinutes = Math.round(
-      ((calculateDurationInMs(this.lastUse) % 86400000) % 3600000) / 60000
-    );
+    const idleTimeMinutes = Math.round(((calculateDurationInMs(this.lastUse) % 86400000) % 3600000) / 60000);
 
     return idleTimeMinutes > sessionTimeoutMinutes - 1;
   }
@@ -636,7 +614,7 @@ class ServerSessionPool {
 
   constructor(topology: Topology) {
     if (topology == null) {
-      throw new Error('ServerSessionPool requires a topology');
+      throw new Error("ServerSessionPool requires a topology");
     }
 
     this.topology = topology;
@@ -650,7 +628,7 @@ class ServerSessionPool {
         this.sessions.map((session: ServerSession) => session.id),
         () => {
           this.sessions = [];
-          if (typeof callback === 'function') {
+          if (typeof callback === "function") {
             callback();
           }
         }
@@ -659,7 +637,7 @@ class ServerSessionPool {
       return;
     }
 
-    if (typeof callback === 'function') {
+    if (typeof callback === "function") {
       callback();
     }
   }
@@ -723,12 +701,7 @@ function commandSupportsReadConcern(command: Document, options?: Document): bool
     return true;
   }
 
-  if (
-    command.mapReduce &&
-    options &&
-    options.out &&
-    (options.out.inline === 1 || options.out === 'inline')
-  ) {
+  if (command.mapReduce && options && options.out && (options.out.inline === 1 || options.out === "inline")) {
     return true;
   }
 
@@ -742,26 +715,22 @@ function commandSupportsReadConcern(command: Document, options?: Document): bool
  * @param command - the command to decorate
  * @param options - Optional settings passed to calling operation
  */
-function applySession(
-  session: ClientSession,
-  command: Document,
-  options?: CommandOptions
-): MongoError | undefined {
+function applySession(session: ClientSession, command: Document, options?: CommandOptions): MongoError | undefined {
   // TODO: merge this with `assertAlive`, did not want to throw a try/catch here
   if (session.hasEnded) {
-    return new MongoError('Attemped to use a session that has ended');
+    return new MongoError("Attemped to use a session that has ended");
   }
 
   const serverSession = session.serverSession;
   if (serverSession == null) {
-    return new MongoError('Unable to acquire server session');
+    return new MongoError("Unable to acquire server session");
   }
 
   // SPEC-1019: silently ignore explicit session with unacknowledged write for backwards compatibility
   // FIXME: NODE-2781, this check for write concern shouldn't be happening here, but instead during command construction
   if (options && options.writeConcern && (options.writeConcern as WriteConcern).w === 0) {
     if (session && session.explicit) {
-      return new MongoError('Cannot have explicit session with unacknowledged writes');
+      return new MongoError("Cannot have explicit session with unacknowledged writes");
     }
     return;
   }
@@ -802,8 +771,7 @@ function applySession(
     session.transaction.transition(TxnState.TRANSACTION_IN_PROGRESS);
     command.startTransaction = true;
 
-    const readConcern =
-      session.transaction.options.readConcern || session?.clientOptions?.readConcern;
+    const readConcern = session.transaction.options.readConcern || session?.clientOptions?.readConcern;
     if (readConcern) {
       command.readConcern = readConcern;
     }
@@ -836,5 +804,5 @@ export {
   TxnState,
   applySession,
   updateSessionFromResponse,
-  commandSupportsReadConcern
+  commandSupportsReadConcern,
 };

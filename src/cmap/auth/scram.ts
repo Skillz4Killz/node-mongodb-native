@@ -1,13 +1,13 @@
-import * as crypto from 'crypto';
-import { Binary, Document } from '../../bson';
-import { MongoError, AnyError } from '../../error';
-import { AuthProvider, AuthContext } from './auth_provider';
-import { Callback, ns } from '../../utils';
-import type { MongoCredentials } from './mongo_credentials';
-import type { HandshakeDocument } from '../connect';
+import { Document } from '../../bson.ts';
+import { MongoError, AnyError } from '../../error.ts';
+import { AuthProvider, AuthContext } from './auth_provider.ts';
+import { Callback, ns } from '../../utils.ts';
+import type { MongoCredentials } from './mongo_credentials.ts';
+import type { HandshakeDocument } from '../connect.ts';
 
-import { saslprep } from '../../deps';
-import { AuthMechanism } from './defaultAuthProviders';
+import { saslprep } from '../../deps.ts';
+import { AuthMechanism } from './defaultAuthProviders.ts';
+import { Buffer, Binary, randomBytes, createHash, pbkdf2Sync } from "../../../deps.ts";
 
 type CryptoMethod = 'sha1' | 'sha256';
 
@@ -28,7 +28,7 @@ class ScramSHA extends AuthProvider {
       console.warn('Warning: no saslprep library specified. Passwords will not be sanitized');
     }
 
-    crypto.randomBytes(24, (err, nonce) => {
+    randomBytes(24, (err, nonce) => {
       if (err) {
         return callback(err);
       }
@@ -248,9 +248,9 @@ function passwordDigest(username: string, password: string) {
     throw new MongoError('password cannot be empty');
   }
 
-  const md5 = crypto.createHash('md5');
-  md5.update(`${username}:mongo:${password}`, 'utf8');
-  return md5.digest('hex');
+  const md5 = createHash('md5');
+  md5.update(`${username}:mongo:${password}`);
+  return md5.digest();
 }
 
 // XOR two buffers
@@ -274,11 +274,11 @@ function xor(a: Buffer, b: Buffer) {
 }
 
 function H(method: CryptoMethod, text: Buffer) {
-  return crypto.createHash(method).update(text).digest();
+  return createHash(method).update(text).digest();
 }
 
 function HMAC(method: CryptoMethod, key: Buffer, text: Buffer | string) {
-  return crypto.createHmac(method, key).update(text).digest();
+  return createHmac(method, key).update(text).digest();
 }
 
 interface HICache {
@@ -305,7 +305,7 @@ function HI(data: string, salt: Buffer, iterations: number, cryptoMethod: Crypto
   }
 
   // generate the salt
-  const saltedData = crypto.pbkdf2Sync(
+  const saltedData = pbkdf2Sync(
     data,
     salt,
     iterations,
@@ -328,8 +328,8 @@ function compareDigest(lhs: Buffer, rhs: Uint8Array) {
     return false;
   }
 
-  if (typeof crypto.timingSafeEqual === 'function') {
-    return crypto.timingSafeEqual(lhs, rhs);
+  if (typeof timingSafeEqual === 'function') {
+    return timingSafeEqual(lhs, rhs);
   }
 
   let result = 0;

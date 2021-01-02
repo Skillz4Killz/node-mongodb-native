@@ -1,12 +1,12 @@
-import { defineAspects, Aspect, Hint } from './operation';
-import { CommandOperation, CommandOperationOptions, CollationOptions } from './command';
-import { Callback, maxWireVersion, MongoDBNamespace, collationNotSupported } from '../utils';
-import type { Document } from '../bson';
-import type { Server } from '../sdam/server';
-import type { Collection } from '../collection';
-import type { ClientSession } from '../sessions';
-import { MongoError } from '../error';
-import type { WriteConcernOptions } from '../write_concern';
+import { defineAspects, Aspect, Hint } from './operation.ts';
+import { CommandOperation, CommandOperationOptions, CollationOptions } from './command.ts';
+import { Callback, maxWireVersion, MongoDBNamespace, collationNotSupported } from '../utils.ts';
+import type { Document } from '../bson.ts';
+import type { Server } from '../sdam/server.ts';
+import type { Collection } from '../collection.ts';
+import type { ClientSession } from '../sessions.ts';
+import { MongoError } from '../error.ts';
+import type { WriteConcernOptions } from '../write_concern.ts';
 
 /** @public */
 export interface DeleteOptions extends CommandOperationOptions, WriteConcernOptions {

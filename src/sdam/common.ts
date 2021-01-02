@@ -1,6 +1,6 @@
-import type { Timestamp, Binary, Long } from '../bson';
-import type { Topology } from './topology';
-import type { ClientSession } from '../sessions';
+import { Binary, Long, Timestamp } from "../../deps.ts";
+import type { Topology } from './topology.ts';
+import type { ClientSession } from '../sessions.ts';
 
 // shared state names
 export const STATE_CLOSING = 'closing';

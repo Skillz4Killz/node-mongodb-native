@@ -1,33 +1,30 @@
-import { Db, DbOptions } from './db';
-import { EventEmitter } from 'events';
-import { ChangeStream, ChangeStreamOptions } from './change_stream';
-import { ReadPreference, ReadPreferenceModeId } from './read_preference';
-import { MongoError, AnyError } from './error';
-import { WriteConcern, W, WriteConcernSettings } from './write_concern';
-import { maybePromise, MongoDBNamespace, Callback, resolveOptions } from './utils';
-import { deprecate } from 'util';
-import { connect, validOptions } from './operations/connect';
-import { PromiseProvider } from './promise_provider';
-import { Logger } from './logger';
-import { ReadConcern, ReadConcernLevelId, ReadConcernLike } from './read_concern';
-import { BSONSerializeOptions, Document, resolveBSONOptions } from './bson';
-import type { AutoEncryptionOptions } from './deps';
-import type { CompressorName } from './cmap/wire_protocol/compression';
-import type { AuthMechanismId } from './cmap/auth/defaultAuthProviders';
-import type { Topology } from './sdam/topology';
-import type { ClientSession, ClientSessionOptions } from './sessions';
-import type { TagSet } from './sdam/server_description';
-import type { ConnectionOptions as TLSConnectionOptions } from 'tls';
-import type { TcpSocketConnectOpts as ConnectionOptions } from 'net';
-import type { MongoCredentials } from './cmap/auth/mongo_credentials';
-import { parseOptions } from './connection_string';
+import { Buffer, EventEmitter } from "../deps.ts";
+import { Db, DbOptions } from "./db.ts";
+import { ChangeStream, ChangeStreamOptions } from "./change_stream.ts";
+import { ReadPreference, ReadPreferenceModeId } from "./read_preference.ts";
+import { MongoError, AnyError } from "./error.ts";
+import { WriteConcern, W, WriteConcernSettings } from "./write_concern.ts";
+import { maybePromise, MongoDBNamespace, Callback, resolveOptions } from "./utils.ts";
+import { connect, validOptions } from "./operations/connect.ts";
+import { PromiseProvider } from "./promise_provider.ts";
+import { Logger } from "./logger.ts";
+import { ReadConcern, ReadConcernLevelId, ReadConcernLike } from "./read_concern.ts";
+import { BSONSerializeOptions, Document, resolveBSONOptions } from "./bson.ts";
+import type { AutoEncryptionOptions } from "./deps.ts";
+import type { CompressorName } from "./cmap/wire_protocol/compression.ts";
+import type { AuthMechanismId } from "./cmap/auth/defaultAuthProviders.ts";
+import type { Topology } from "./sdam/topology.ts";
+import type { ClientSession, ClientSessionOptions } from "./sessions.ts";
+import type { TagSet } from "./sdam/server_description.ts";
+import type { MongoCredentials } from "./cmap/auth/mongo_credentials.ts";
+import { parseOptions } from "./connection_string.ts";
 
 /** @public */
 export const LogLevel = {
-  error: 'error',
-  warn: 'warn',
-  info: 'info',
-  debug: 'debug'
+  error: "error",
+  warn: "warn",
+  info: "info",
+  debug: "debug",
 } as const;
 
 /** @public */
@@ -66,7 +63,7 @@ export interface MongoURIOptions {
   /** Enables or disables TLS/SSL for the connection. */
   tls?: boolean;
   /** A boolean to enable or disables TLS/SSL for the connection. (The ssl option is equivalent to the tls option.) */
-  ssl?: MongoURIOptions['tls'];
+  ssl?: MongoURIOptions["tls"];
   /** Specifies the location of a local .pem file that contains either the client’s TLS/SSL certificate or the client’s TLS/SSL certificate and key. */
   tlsCertificateKeyFile?: string;
   /** Specifies the password to de-crypt the tlsCertificateKeyFile. */
@@ -293,8 +290,8 @@ export class MongoClient extends EventEmitter {
       writeConcern: WriteConcern.fromOptions(options),
       readPreference: ReadPreference.fromOptions(options) ?? ReadPreference.primary,
       bsonOptions: resolveBSONOptions(options),
-      namespace: new MongoDBNamespace('admin'),
-      logger: options?.logger ?? new Logger('MongoClient')
+      namespace: new MongoDBNamespace("admin"),
+      logger: options?.logger ?? new Logger("MongoClient"),
     };
   }
 
@@ -326,15 +323,15 @@ export class MongoClient extends EventEmitter {
   connect(): Promise<MongoClient>;
   connect(callback?: Callback<MongoClient>): void;
   connect(callback?: Callback<MongoClient>): Promise<MongoClient> | void {
-    if (callback && typeof callback !== 'function') {
-      throw new TypeError('`connect` only accepts a callback');
+    if (callback && typeof callback !== "function") {
+      throw new TypeError("`connect` only accepts a callback");
     }
 
-    return maybePromise(callback, cb => {
+    return maybePromise(callback, (cb) => {
       const err = validOptions(this.s.options as any);
       if (err) return cb(err);
 
-      connect(this, this.s.url, this.s.options as any, err => {
+      connect(this, this.s.url, this.s.options as any, (err) => {
         if (err) return cb(err);
         cb(undefined, this);
       });
@@ -351,17 +348,14 @@ export class MongoClient extends EventEmitter {
   close(callback: Callback<void>): void;
   close(force: boolean): Promise<void>;
   close(force: boolean, callback: Callback<void>): void;
-  close(
-    forceOrCallback?: boolean | Callback<void>,
-    callback?: Callback<void>
-  ): Promise<void> | void {
-    if (typeof forceOrCallback === 'function') {
+  close(forceOrCallback?: boolean | Callback<void>, callback?: Callback<void>): Promise<void> | void {
+    if (typeof forceOrCallback === "function") {
       callback = forceOrCallback;
     }
 
-    const force = typeof forceOrCallback === 'boolean' ? forceOrCallback : false;
+    const force = typeof forceOrCallback === "boolean" ? forceOrCallback : false;
 
-    return maybePromise(callback, cb => {
+    return maybePromise(callback, (cb) => {
       if (this.topology == null) {
         return cb();
       }
@@ -370,14 +364,14 @@ export class MongoClient extends EventEmitter {
       const topology = this.topology;
       this.topology = undefined;
 
-      topology.close({ force }, err => {
+      topology.close({ force }, (err) => {
         const autoEncrypter = topology.s.options.autoEncrypter;
         if (!autoEncrypter) {
           cb(err);
           return;
         }
 
-        autoEncrypter.teardown(force, err2 => cb(err || err2));
+        autoEncrypter.teardown(force, (err2) => cb(err || err2));
       });
     });
   }
@@ -403,7 +397,7 @@ export class MongoClient extends EventEmitter {
 
     // If no topology throw an error message
     if (!this.topology) {
-      throw new MongoError('MongoClient must be connected before calling MongoClient.prototype.db');
+      throw new MongoError("MongoClient must be connected before calling MongoClient.prototype.db");
     }
 
     // Return the db object
@@ -433,7 +427,7 @@ export class MongoClient extends EventEmitter {
     options?: MongoClientOptions | Callback<MongoClient>,
     callback?: Callback<MongoClient>
   ): Promise<MongoClient> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
     options = options ?? {};
 
     // Create client
@@ -448,11 +442,11 @@ export class MongoClient extends EventEmitter {
   startSession(options?: ClientSessionOptions): ClientSession {
     options = Object.assign({ explicit: true }, options);
     if (!this.topology) {
-      throw new MongoError('Must connect to a server before calling this method');
+      throw new MongoError("Must connect to a server before calling this method");
     }
 
     if (!this.topology.hasSessionSupport()) {
-      throw new MongoError('Current topology does not support sessions');
+      throw new MongoError("Current topology does not support sessions");
     }
 
     return this.topology.startSession(options, this.s.options);
@@ -474,13 +468,13 @@ export class MongoClient extends EventEmitter {
     callback?: WithSessionCallback
   ): Promise<void> {
     let options: ClientSessionOptions = optionsOrOperation as ClientSessionOptions;
-    if (typeof optionsOrOperation === 'function') {
+    if (typeof optionsOrOperation === "function") {
       callback = optionsOrOperation as WithSessionCallback;
       options = { owner: Symbol() };
     }
 
     if (callback == null) {
-      throw new TypeError('Missing required callback parameter');
+      throw new TypeError("Missing required callback parameter");
     }
 
     const session = this.startSession(options);
@@ -489,7 +483,7 @@ export class MongoClient extends EventEmitter {
     let cleanupHandler: CleanUpHandlerFunction = ((err, result, opts) => {
       // prevent multiple calls to cleanupHandler
       cleanupHandler = () => {
-        throw new ReferenceError('cleanupHandler was called too many times');
+        throw new ReferenceError("cleanupHandler was called too many times");
       };
 
       opts = Object.assign({ throw: true }, opts);
@@ -504,8 +498,8 @@ export class MongoClient extends EventEmitter {
     try {
       const result = callback(session);
       return Promise.resolve(result).then(
-        result => cleanupHandler(undefined, result, undefined),
-        err => cleanupHandler(err, null, { throw: true })
+        (result) => cleanupHandler(undefined, result, undefined),
+        (err) => cleanupHandler(err, null, { throw: true })
       );
     } catch (err) {
       return cleanupHandler(err, null, { throw: false }) as Promise<void>;
@@ -544,16 +538,16 @@ export class MongoClient extends EventEmitter {
    * @deprecated You cannot logout a MongoClient, you can create a new instance.
    */
   logout = deprecate((options: any, callback: Callback): void => {
-    if (typeof options === 'function') (callback = options), (options = {});
-    if (typeof callback === 'function') callback(undefined, true);
-  }, 'Multiple authentication is prohibited on a connected client, please only authenticate once per MongoClient');
+    if (typeof options === "function") (callback = options), (options = {});
+    if (typeof callback === "function") callback(undefined, true);
+  }, "Multiple authentication is prohibited on a connected client, please only authenticate once per MongoClient");
 }
 
 /** @public */
 export type HostAddress =
-  | { host: string; type: 'srv' }
-  | { host: string; port: number; type: 'tcp' }
-  | { host: string; type: 'unix' };
+  | { host: string; type: "srv" }
+  | { host: string; port: number; type: "tcp" }
+  | { host: string; type: "unix" };
 
 /**
  * Mongo Client Options
@@ -561,44 +555,44 @@ export type HostAddress =
  */
 export interface MongoOptions
   extends Required<BSONSerializeOptions>,
-    Omit<ConnectionOptions, 'port'>,
-    Omit<TLSConnectionOptions, 'port'>,
+    Omit<ConnectionOptions, "port">,
+    Omit<TLSConnectionOptions, "port">,
     Required<
       Pick<
         MongoClientOptions,
-        | 'autoEncryption'
-        | 'compression'
-        | 'compressors'
-        | 'connectTimeoutMS'
-        | 'dbName'
-        | 'directConnection'
-        | 'driverInfo'
-        | 'forceServerObjectId'
-        | 'minHeartbeatFrequencyMS'
-        | 'heartbeatFrequencyMS'
-        | 'keepAlive'
-        | 'keepAliveInitialDelay'
-        | 'localThresholdMS'
-        | 'logger'
-        | 'maxIdleTimeMS'
-        | 'maxPoolSize'
-        | 'minPoolSize'
-        | 'monitorCommands'
-        | 'noDelay'
-        | 'numberOfRetries'
-        | 'pkFactory'
-        | 'promiseLibrary'
-        | 'raw'
-        | 'replicaSet'
-        | 'retryReads'
-        | 'retryWrites'
-        | 'serverSelectionTimeoutMS'
-        | 'socketTimeoutMS'
-        | 'tlsAllowInvalidCertificates'
-        | 'tlsAllowInvalidHostnames'
-        | 'tlsInsecure'
-        | 'waitQueueTimeoutMS'
-        | 'zlibCompressionLevel'
+        | "autoEncryption"
+        | "compression"
+        | "compressors"
+        | "connectTimeoutMS"
+        | "dbName"
+        | "directConnection"
+        | "driverInfo"
+        | "forceServerObjectId"
+        | "minHeartbeatFrequencyMS"
+        | "heartbeatFrequencyMS"
+        | "keepAlive"
+        | "keepAliveInitialDelay"
+        | "localThresholdMS"
+        | "logger"
+        | "maxIdleTimeMS"
+        | "maxPoolSize"
+        | "minPoolSize"
+        | "monitorCommands"
+        | "noDelay"
+        | "numberOfRetries"
+        | "pkFactory"
+        | "promiseLibrary"
+        | "raw"
+        | "replicaSet"
+        | "retryReads"
+        | "retryWrites"
+        | "serverSelectionTimeoutMS"
+        | "socketTimeoutMS"
+        | "tlsAllowInvalidCertificates"
+        | "tlsAllowInvalidHostnames"
+        | "tlsInsecure"
+        | "waitQueueTimeoutMS"
+        | "zlibCompressionLevel"
       >
     > {
   hosts: HostAddress[];

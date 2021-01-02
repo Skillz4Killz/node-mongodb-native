@@ -1,8 +1,7 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
-import type { Admin } from './admin';
-import type { Collection } from './collection';
-import type { Db } from './db';
-import type { MongoClient } from './mongo_client';
+import type { Admin } from './admin.ts';
+import type { Collection } from './collection.ts';
+import type { Db } from './db.ts';
+import type { MongoClient } from './mongo_client.ts';
 
 let collection: typeof Collection;
 let db: typeof Db;

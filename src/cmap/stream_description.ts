@@ -1,7 +1,7 @@
-import { parseServerType } from '../sdam/server_description';
-import type { Document } from '../bson';
-import type { CompressorName } from './wire_protocol/compression';
-import { ServerType } from '../sdam/common';
+import { parseServerType } from '../sdam/server_description.ts';
+import type { Document } from '../bson.ts';
+import type { CompressorName } from './wire_protocol/compression.ts';
+import { ServerType } from '../sdam/common.ts';
 
 const RESPONSE_FIELDS = [
   'minWireVersion',

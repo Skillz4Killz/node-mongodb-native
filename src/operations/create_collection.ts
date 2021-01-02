@@ -1,15 +1,14 @@
-import { CommandOperation, CommandOperationOptions } from './command';
-import { Aspect, defineAspects } from './operation';
-import { loadCollection } from '../dynamic_loaders';
-import type { Callback } from '../utils';
-import type { Document } from '../bson';
-import type { Server } from '../sdam/server';
-import type { Db } from '../db';
-import type { PkFactory } from '../mongo_client';
+import { CommandOperation, CommandOperationOptions } from './command.ts';
+import { Aspect, defineAspects } from './operation.ts';
+import { loadCollection } from '../dynamic_loaders.ts';
+import type { Callback } from '../utils.ts';
+import type { Document } from '../bson.ts';
+import type { Server } from '../sdam/server.ts';
+import type { Db } from '../db.ts';
+import type { PkFactory } from '../mongo_client.ts';
 
-// eslint-disable-next-line
-import type { Collection } from '../collection';
-import type { ClientSession } from '../sessions';
+import type { Collection } from '../collection.ts';
+import type { ClientSession } from '../sessions.ts';
 
 const ILLEGAL_COMMAND_FIELDS = new Set([
   'w',

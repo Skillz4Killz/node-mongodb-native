@@ -1,6 +1,6 @@
-import { PromiseProvider } from '../promise_provider';
-import { Long, ObjectId, Document, BSONSerializeOptions, resolveBSONOptions } from '../bson';
-import { MongoError, MongoWriteConcernError, AnyError } from '../error';
+import { PromiseProvider } from '../promise_provider.ts';
+import { Document, BSONSerializeOptions, resolveBSONOptions } from '../bson.ts';
+import { MongoError, MongoWriteConcernError, AnyError } from '../error.ts';
 import {
   applyRetryableWrites,
   executeLegacyOperation,
@@ -9,16 +9,17 @@ import {
   MongoDBNamespace,
   getTopology,
   resolveOptions
-} from '../utils';
-import { executeOperation } from '../operations/execute_operation';
-import { InsertOperation } from '../operations/insert';
-import { UpdateOperation, UpdateStatement, makeUpdateStatement } from '../operations/update';
-import { DeleteOperation, DeleteStatement, makeDeleteStatement } from '../operations/delete';
-import { WriteConcern } from '../write_concern';
-import type { Collection } from '../collection';
-import type { Topology } from '../sdam/topology';
-import type { CommandOperationOptions, CollationOptions } from '../operations/command';
-import type { Hint } from '../operations/operation';
+} from '../utils.ts';
+import { executeOperation } from '../operations/execute_operation.ts';
+import { InsertOperation } from '../operations/insert.ts';
+import { UpdateOperation, UpdateStatement, makeUpdateStatement } from '../operations/update.ts';
+import { DeleteOperation, DeleteStatement, makeDeleteStatement } from '../operations/delete.ts';
+import { WriteConcern } from '../write_concern.ts';
+import type { Collection } from '../collection.ts';
+import type { Topology } from '../sdam/topology.ts';
+import type { CommandOperationOptions, CollationOptions } from '../operations/command.ts';
+import type { Hint } from '../operations/operation.ts';
+import { Long, ObjectId } from "https://deno.land/x/bson@v0.1.3/bson.d.ts";
 
 // Error codes
 const WRITE_CONCERN_ERROR = 64;

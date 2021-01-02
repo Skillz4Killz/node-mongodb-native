@@ -1,17 +1,18 @@
-import { defineAspects, Aspect, Hint } from './operation';
+import { defineAspects, Aspect, Hint } from './operation.ts';
 import {
   hasAtomicOperators,
   MongoDBNamespace,
   Callback,
   collationNotSupported,
   maxWireVersion
-} from '../utils';
-import { CommandOperation, CommandOperationOptions, CollationOptions } from './command';
-import type { Server } from '../sdam/server';
-import type { Collection } from '../collection';
-import type { ObjectId, Document } from '../bson';
-import type { ClientSession } from '../sessions';
-import { MongoError } from '../error';
+} from '../utils.ts';
+import { CommandOperation, CommandOperationOptions, CollationOptions } from './command.ts';
+import type { Server } from '../sdam/server.ts';
+import type { Collection } from '../collection.ts';
+import type { Document } from '../bson.ts';
+import type { ClientSession } from '../sessions.ts';
+import { MongoError } from '../error.ts';
+import { ObjectId } from "../../deps.ts";
 
 /** @public */
 export interface UpdateOptions extends CommandOperationOptions {

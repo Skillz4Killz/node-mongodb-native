@@ -1,15 +1,12 @@
-import * as http from 'http';
-import * as crypto from 'crypto';
-import * as url from 'url';
-import * as BSON from '../../bson';
-import { AuthProvider, AuthContext } from './auth_provider';
-import { MongoCredentials } from './mongo_credentials';
-import { MongoError } from '../../error';
-import { maxWireVersion, Callback, ns } from '../../utils';
-import type { BSONSerializeOptions } from '../../bson';
+import { AuthProvider, AuthContext } from './auth_provider.ts';
+import { MongoCredentials } from './mongo_credentials.ts';
+import { MongoError } from '../../error.ts';
+import { maxWireVersion, Callback, ns } from '../../utils.ts';
 
-import { aws4 } from '../../deps';
-import { AuthMechanism } from './defaultAuthProviders';
+import { aws4 } from '../../deps.ts';
+import { AuthMechanism } from './defaultAuthProviders.ts';
+import { deserialize, randomBytes, serialize } from "../../../deps.ts";
+import { BSONSerializeOptions } from "../../../mod.ts";
 
 const ASCII_N = 110;
 const AWS_RELATIVE_URI = 'http://169.254.170.2';
@@ -58,7 +55,7 @@ export class MongoDBAWS extends AuthProvider {
     const password = credentials.password;
     const db = credentials.source;
     const token = credentials.mechanismProperties.AWS_SESSION_TOKEN;
-    crypto.randomBytes(32, (err, nonce) => {
+    randomBytes(32, (err, nonce) => {
       if (err) {
         callback(err);
         return;
@@ -67,13 +64,13 @@ export class MongoDBAWS extends AuthProvider {
       const saslStart = {
         saslStart: 1,
         mechanism: 'MONGODB-AWS',
-        payload: BSON.serialize({ r: nonce, p: ASCII_N }, bsonOptions)
+        payload: serialize({ r: nonce, p: ASCII_N }, bsonOptions)
       };
 
       connection.command(ns(`${db}.$cmd`), saslStart, undefined, (err, res) => {
         if (err) return callback(err);
 
-        const serverResponse = BSON.deserialize(res.payload.buffer, bsonOptions);
+        const serverResponse = deserialize(res.payload.buffer, bsonOptions);
         const host = serverResponse.h;
         const serverNonce = serverResponse.s.buffer;
         if (serverNonce.length !== 64) {
@@ -84,7 +81,7 @@ export class MongoDBAWS extends AuthProvider {
           return;
         }
 
-        if (serverNonce.compare(nonce, 0, nonce.length, 0, nonce.length) !== 0) {
+        if (serverNonce.compare(nonce, 0, nonce?.length || 0, 0, nonce?.length || 0) !== 0) {
           callback(new MongoError('Server nonce does not begin with client nonce'));
           return;
         }
@@ -127,7 +124,7 @@ export class MongoDBAWS extends AuthProvider {
         const saslContinue = {
           saslContinue: 1,
           conversationId: 1,
-          payload: BSON.serialize(payload, bsonOptions)
+          payload: serialize(payload, bsonOptions)
         };
 
         connection.command(ns(`${db}.$cmd`), saslContinue, undefined, callback);
@@ -165,9 +162,9 @@ function makeTempCredentials(credentials: MongoCredentials, callback: Callback<M
 
   // If the environment variable AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
   // is set then drivers MUST assume that it was set by an AWS ECS agent
-  if (process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI) {
+  if (Deno.env.get("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI")) {
     request(
-      `${AWS_RELATIVE_URI}${process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI}`,
+      `${AWS_RELATIVE_URI}${Deno.env.get("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI")}`,
       (err, res) => {
         if (err) return callback(err);
         done(res);

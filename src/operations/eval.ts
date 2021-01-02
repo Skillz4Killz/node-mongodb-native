@@ -1,12 +1,12 @@
-import { CommandOperation, CommandOperationOptions } from './command';
-import { Code, Document } from '../bson';
-import { ReadPreference } from '../read_preference';
-import { MongoError } from '../error';
-import type { Callback } from '../utils';
-import type { Server } from '../sdam/server';
-import type { Db } from '../db';
-import type { Collection } from '../collection';
-import type { ClientSession } from '../sessions';
+import { CommandOperation, CommandOperationOptions } from './command.ts';
+import { Code, Document } from '../bson.ts';
+import { ReadPreference } from '../read_preference.ts';
+import { MongoError } from '../error.ts';
+import type { Callback } from '../utils.ts';
+import type { Server } from '../sdam/server.ts';
+import type { Db } from '../db.ts';
+import type { Collection } from '../collection.ts';
+import type { ClientSession } from '../sessions.ts';
 
 /** @public */
 export interface EvalOptions extends CommandOperationOptions {

@@ -1,9 +1,9 @@
-import { CommandOperation, CommandOperationOptions } from './command';
-import type { Callback } from '../utils';
-import type { Document } from '../bson';
-import type { Server } from '../sdam/server';
-import type { Admin } from '../admin';
-import type { ClientSession } from '../sessions';
+import { CommandOperation, CommandOperationOptions } from './command.ts';
+import type { Callback } from '../utils.ts';
+import type { Document } from '../bson.ts';
+import type { Server } from '../sdam/server.ts';
+import type { Admin } from '../admin.ts';
+import type { ClientSession } from '../sessions.ts';
 
 /** @public */
 export interface ValidateCollectionOptions extends CommandOperationOptions {

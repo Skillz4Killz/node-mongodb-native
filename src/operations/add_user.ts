@@ -1,12 +1,11 @@
-import * as crypto from 'crypto';
-import { Aspect, defineAspects } from './operation';
-import { CommandOperation, CommandOperationOptions } from './command';
-import { MongoError } from '../error';
-import { Callback, getTopology } from '../utils';
-import type { Document } from '../bson';
-import type { Server } from '../sdam/server';
-import type { Db } from '../db';
-import type { ClientSession } from '../sessions';
+import { Aspect, defineAspects } from './operation.ts';
+import { CommandOperation, CommandOperationOptions } from './command.ts';
+import { MongoError } from '../error.ts';
+import { Callback, getTopology } from '../utils.ts';
+import type { Document } from '../bson.ts';
+import type { Server } from '../sdam/server.ts';
+import type { Db } from '../db.ts';
+import type { ClientSession } from '../sessions.ts';
 
 /** @public */
 export interface AddUserOptions extends CommandOperationOptions {

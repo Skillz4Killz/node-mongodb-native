@@ -1,15 +1,15 @@
-import { ServerType } from '../../sdam/common';
-import { TopologyDescription } from '../../sdam/topology_description';
-import { MongoError } from '../../error';
-import { ReadPreference } from '../../read_preference';
-import type { Document } from '../../bson';
-import type { OpQueryOptions } from '../commands';
-import type { Topology } from '../../sdam/topology';
-import type { Server } from '../../sdam/server';
-import type { ServerDescription } from '../../sdam/server_description';
-import type { ReadPreferenceLike } from '../../read_preference';
-import type { CommandOptions } from '../connection';
-import type { Connection } from '../connection';
+import { ServerType } from '../../sdam/common.ts';
+import { TopologyDescription } from '../../sdam/topology_description.ts';
+import { MongoError } from '../../error.ts';
+import { ReadPreference } from '../../read_preference.ts';
+import type { Document } from '../../bson.ts';
+import type { OpQueryOptions } from '../commands.ts';
+import type { Topology } from '../../sdam/topology.ts';
+import type { Server } from '../../sdam/server.ts';
+import type { ServerDescription } from '../../sdam/server_description.ts';
+import type { ReadPreferenceLike } from '../../read_preference.ts';
+import type { CommandOptions } from '../connection.ts';
+import type { Connection } from '../connection.ts';
 
 export interface ReadPreferenceOption {
   readPreference?: ReadPreferenceLike;

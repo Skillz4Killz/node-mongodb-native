@@ -1,14 +1,14 @@
-import { AggregateOperation, AggregateOptions } from '../operations/aggregate';
-import { AbstractCursor, assertUninitialized } from './abstract_cursor';
-import { executeOperation, ExecutionResult } from '../operations/execute_operation';
-import type { Document } from '../bson';
-import type { Sort } from '../sort';
-import type { Topology } from '../sdam/topology';
-import type { Callback, MongoDBNamespace } from '../utils';
-import type { ClientSession } from '../sessions';
-import type { OperationParent } from '../operations/command';
-import type { AbstractCursorOptions } from './abstract_cursor';
-import type { ExplainVerbosityLike } from '../explain';
+import { AggregateOperation, AggregateOptions } from '../operations/aggregate.ts';
+import { AbstractCursor, assertUninitialized } from './abstract_cursor.ts';
+import { executeOperation, ExecutionResult } from '../operations/execute_operation.ts';
+import type { Document } from '../bson.ts';
+import type { Sort } from '../sort.ts';
+import type { Topology } from '../sdam/topology.ts';
+import type { Callback, MongoDBNamespace } from '../utils.ts';
+import type { ClientSession } from '../sessions.ts';
+import type { OperationParent } from '../operations/command.ts';
+import type { AbstractCursorOptions } from './abstract_cursor.ts';
+import type { ExplainVerbosityLike } from '../explain.ts';
 
 /** @public */
 export interface AggregationCursorOptions extends AbstractCursorOptions, AggregateOptions {}

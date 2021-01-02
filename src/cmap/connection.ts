@@ -1,8 +1,8 @@
-import { EventEmitter } from 'events';
-import { MessageStream, OperationDescription } from './message_stream';
-import { StreamDescription, StreamDescriptionOptions } from './stream_description';
-import { CommandStartedEvent, CommandFailedEvent, CommandSucceededEvent } from './events';
-import { applySession, ClientSession, updateSessionFromResponse } from '../sessions';
+import { EventEmitter, Long } from "../../deps.ts";
+import { MessageStream, OperationDescription } from "./message_stream.ts";
+import { StreamDescription, StreamDescriptionOptions } from "./stream_description.ts";
+import { CommandStartedEvent, CommandFailedEvent, CommandSucceededEvent } from "./events.ts";
+import { applySession, ClientSession, updateSessionFromResponse } from "../sessions.ts";
 import {
   uuidV4,
   ClientMetadata,
@@ -10,15 +10,9 @@ import {
   calculateDurationInMs,
   Callback,
   MongoDBNamespace,
-  maxWireVersion
-} from '../utils';
-import {
-  AnyError,
-  MongoError,
-  MongoNetworkError,
-  MongoNetworkTimeoutError,
-  MongoWriteConcernError
-} from '../error';
+  maxWireVersion,
+} from "../utils.ts";
+import { AnyError, MongoError, MongoNetworkError, MongoNetworkTimeoutError, MongoWriteConcernError } from "../error.ts";
 import {
   BinMsg,
   WriteProtocolMessageType,
@@ -27,29 +21,27 @@ import {
   GetMore,
   Query,
   OpQueryOptions,
-  Msg
-} from './commands';
-import { BSONSerializeOptions, Document, Long, pluckBSONSerializeOptions } from '../bson';
-import type { AutoEncrypter } from '../deps';
-import type { ConnectionOptions as TLSConnectionOptions } from 'tls';
-import type { TcpNetConnectOpts, IpcNetConnectOpts } from 'net';
-import type { MongoCredentials } from './auth/mongo_credentials';
-import type { Stream } from './connect';
-import type { LoggerOptions } from '../logger';
-import { applyCommonQueryOptions, getReadPreference, isSharded } from './wire_protocol/shared';
-import { ReadPreference, ReadPreferenceLike } from '../read_preference';
-import { isTransactionCommand } from '../transactions';
-import type { W, WriteConcern, WriteConcernOptions } from '../write_concern';
+  Msg,
+} from "./commands.ts";
+import { BSONSerializeOptions, Document, pluckBSONSerializeOptions } from "../bson.ts";
+import type { AutoEncrypter } from "../deps.ts";
+import type { MongoCredentials } from "./auth/mongo_credentials.ts";
+import type { Stream } from "./connect.ts";
+import type { LoggerOptions } from "../logger.ts";
+import { applyCommonQueryOptions, getReadPreference, isSharded } from "./wire_protocol/shared.ts";
+import { ReadPreference, ReadPreferenceLike } from "../read_preference.ts";
+import { isTransactionCommand } from "../transactions.ts";
+import type { W, WriteConcern, WriteConcernOptions } from "../write_concern.ts";
 
-const kStream = Symbol('stream');
-const kQueue = Symbol('queue');
-const kMessageStream = Symbol('messageStream');
-const kGeneration = Symbol('generation');
-const kLastUseTime = Symbol('lastUseTime');
-const kClusterTime = Symbol('clusterTime');
-const kDescription = Symbol('description');
-const kIsMaster = Symbol('ismaster');
-const kAutoEncrypter = Symbol('autoEncrypter');
+const kStream = Symbol("stream");
+const kQueue = Symbol("queue");
+const kMessageStream = Symbol("messageStream");
+const kGeneration = Symbol("generation");
+const kLastUseTime = Symbol("lastUseTime");
+const kClusterTime = Symbol("clusterTime");
+const kDescription = Symbol("description");
+const kIsMaster = Symbol("ismaster");
+const kAutoEncrypter = Symbol("autoEncrypter");
 
 /** @internal */
 export interface QueryOptions extends BSONSerializeOptions {
@@ -157,16 +149,16 @@ export class Connection extends EventEmitter {
   [kClusterTime]: Document;
 
   /** @event */
-  static readonly COMMAND_STARTED = 'commandStarted' as const;
+  static readonly COMMAND_STARTED = "commandStarted" as const;
   /** @event */
-  static readonly COMMAND_SUCCEEDED = 'commandSucceeded' as const;
+  static readonly COMMAND_SUCCEEDED = "commandSucceeded" as const;
   /** @event */
-  static readonly COMMAND_FAILED = 'commandFailed' as const;
+  static readonly COMMAND_FAILED = "commandFailed" as const;
   /** @event */
-  static readonly CLUSTER_TIME_RECEIVED = 'clusterTimeReceived' as const;
+  static readonly CLUSTER_TIME_RECEIVED = "clusterTimeReceived" as const;
 
   constructor(stream: Stream, options: ConnectionOptions) {
-    super(options);
+    super();
     this.id = options.id;
     this.address = streamIdentifier(stream);
     this.socketTimeout = options.socketTimeout ?? 0;
@@ -181,43 +173,41 @@ export class Connection extends EventEmitter {
     // setup parser stream and message handling
     this[kQueue] = new Map();
     this[kMessageStream] = new MessageStream(options);
-    this[kMessageStream].on('message', messageHandler(this));
+    this[kMessageStream].on("message", messageHandler(this));
     this[kStream] = stream;
-    stream.on('error', () => {
+    stream.on("error", () => {
       /* ignore errors, listen to `close` instead */
     });
 
-    stream.on('close', () => {
+    stream.on("close", () => {
       if (this.closed) {
         return;
       }
 
       this.closed = true;
-      this[kQueue].forEach(op =>
-        op.cb(new MongoNetworkError(`connection ${this.id} to ${this.address} closed`))
-      );
+      this[kQueue].forEach((op) => op.cb(new MongoNetworkError(`connection ${this.id} to ${this.address} closed`)));
       this[kQueue].clear();
 
-      this.emit('close');
+      this.emit("close");
     });
 
-    stream.on('timeout', () => {
+    stream.on("timeout", () => {
       if (this.closed) {
         return;
       }
 
       stream.destroy();
       this.closed = true;
-      this[kQueue].forEach(op =>
+      this[kQueue].forEach((op) =>
         op.cb(
           new MongoNetworkTimeoutError(`connection ${this.id} to ${this.address} timed out`, {
-            beforeHandshake: this[kIsMaster] == null
+            beforeHandshake: this[kIsMaster] == null,
           })
         )
       );
 
       this[kQueue].clear();
-      this.emit('close');
+      this.emit("close");
     });
 
     // hook the message stream up to the passed in stream
@@ -267,7 +257,7 @@ export class Connection extends EventEmitter {
   destroy(options?: DestroyOptions): void;
   destroy(options?: DestroyOptions, callback?: Callback): void;
   destroy(options?: DestroyOptions | Callback, callback?: Callback): void {
-    if (typeof options === 'function') {
+    if (typeof options === "function") {
       callback = options;
       options = { force: false };
     }
@@ -275,7 +265,7 @@ export class Connection extends EventEmitter {
     options = Object.assign({ force: false }, options);
     if (this[kStream] == null || this.destroyed) {
       this.destroyed = true;
-      if (typeof callback === 'function') {
+      if (typeof callback === "function") {
         callback();
       }
 
@@ -285,7 +275,7 @@ export class Connection extends EventEmitter {
     if (options.force) {
       this[kStream].destroy();
       this.destroyed = true;
-      if (typeof callback === 'function') {
+      if (typeof callback === "function") {
         callback();
       }
 
@@ -294,21 +284,16 @@ export class Connection extends EventEmitter {
 
     this[kStream].end(() => {
       this.destroyed = true;
-      if (typeof callback === 'function') {
+      if (typeof callback === "function") {
         callback();
       }
     });
   }
 
   /** @internal */
-  command(
-    ns: MongoDBNamespace,
-    cmd: Document,
-    options: CommandOptions | undefined,
-    callback: Callback
-  ): void {
-    if (typeof ns.db === 'undefined' || typeof ns === 'string') {
-      throw new TypeError('ns cannot be a string');
+  command(ns: MongoDBNamespace, cmd: Document, options: CommandOptions | undefined, callback: Callback): void {
+    if (typeof ns.db === "undefined" || typeof ns === "string") {
+      throw new TypeError("ns cannot be a string");
     }
 
     const readPreference = getReadPreference(cmd, options);
@@ -318,11 +303,7 @@ export class Connection extends EventEmitter {
     let clusterTime = this.clusterTime;
     let finalCmd = Object.assign({}, cmd);
     if (hasSessionSupport(this) && session) {
-      if (
-        session.clusterTime &&
-        clusterTime &&
-        session.clusterTime.clusterTime.greaterThan(clusterTime.clusterTime)
-      ) {
+      if (session.clusterTime && clusterTime && session.clusterTime.clusterTime.greaterThan(clusterTime.clusterTime)) {
         clusterTime = session.clusterTime;
       }
 
@@ -337,10 +318,10 @@ export class Connection extends EventEmitter {
       finalCmd.$clusterTime = clusterTime;
     }
 
-    if (isSharded(this) && !shouldUseOpMsg && readPreference && readPreference.mode !== 'primary') {
+    if (isSharded(this) && !shouldUseOpMsg && readPreference && readPreference.mode !== "primary") {
       finalCmd = {
         $query: finalCmd,
-        $readPreference: readPreference.toJSON()
+        $readPreference: readPreference.toJSON(),
       };
     }
 
@@ -351,7 +332,7 @@ export class Connection extends EventEmitter {
         numberToReturn: -1,
         checkKeys: false,
         // This value is not overridable
-        slaveOk: readPreference.slaveOk()
+        slaveOk: readPreference.slaveOk(),
       },
       options
     );
@@ -365,12 +346,8 @@ export class Connection extends EventEmitter {
     const commandResponseHandler = inTransaction
       ? (err?: AnyError, ...args: Document[]) => {
           // We need to add a TransientTransactionError errorLabel, as stated in the transaction spec.
-          if (
-            err &&
-            err instanceof MongoNetworkError &&
-            !err.hasErrorLabel('TransientTransactionError')
-          ) {
-            err.addErrorLabel('TransientTransactionError');
+          if (err && err instanceof MongoNetworkError && !err.hasErrorLabel("TransientTransactionError")) {
+            err.addErrorLabel("TransientTransactionError");
           }
 
           if (
@@ -378,7 +355,7 @@ export class Connection extends EventEmitter {
             !cmd.commitTransaction &&
             err &&
             err instanceof MongoError &&
-            err.hasErrorLabel('TransientTransactionError')
+            err.hasErrorLabel("TransientTransactionError")
           ) {
             session.transaction.unpinServer();
           }
@@ -396,16 +373,13 @@ export class Connection extends EventEmitter {
 
   /** @internal */
   query(ns: MongoDBNamespace, cmd: Document, options: QueryOptions, callback: Callback): void {
-    const isExplain = typeof cmd.$explain !== 'undefined';
+    const isExplain = typeof cmd.$explain !== "undefined";
     const readPreference = options.readPreference ?? ReadPreference.primary;
     const batchSize = options.batchSize || 0;
     const limit = options.limit;
     const numberToSkip = options.skip || 0;
     let numberToReturn = 0;
-    if (
-      limit &&
-      (limit < 0 || (limit !== 0 && limit < batchSize) || (limit > 0 && batchSize === 0))
-    ) {
+    if (limit && (limit < 0 || (limit !== 0 && limit < batchSize) || (limit > 0 && batchSize === 0))) {
       numberToReturn = limit;
     } else {
       numberToReturn = batchSize;
@@ -420,9 +394,9 @@ export class Connection extends EventEmitter {
     const queryOptions: OpQueryOptions = {
       numberToSkip,
       numberToReturn,
-      pre32Limit: typeof limit === 'number' ? limit : undefined,
+      pre32Limit: typeof limit === "number" ? limit : undefined,
       checkKeys: false,
-      slaveOk: readPreference.slaveOk()
+      slaveOk: readPreference.slaveOk(),
     };
 
     if (options.projection) {
@@ -430,54 +404,44 @@ export class Connection extends EventEmitter {
     }
 
     const query = new Query(ns.toString(), cmd, queryOptions);
-    if (typeof options.tailable === 'boolean') {
+    if (typeof options.tailable === "boolean") {
       query.tailable = options.tailable;
     }
 
-    if (typeof options.oplogReplay === 'boolean') {
+    if (typeof options.oplogReplay === "boolean") {
       query.oplogReplay = options.oplogReplay;
     }
 
-    if (typeof options.timeout === 'boolean') {
+    if (typeof options.timeout === "boolean") {
       query.noCursorTimeout = options.timeout;
-    } else if (typeof options.noCursorTimeout === 'boolean') {
+    } else if (typeof options.noCursorTimeout === "boolean") {
       query.noCursorTimeout = options.noCursorTimeout;
     }
 
-    if (typeof options.awaitData === 'boolean') {
+    if (typeof options.awaitData === "boolean") {
       query.awaitData = options.awaitData;
     }
 
-    if (typeof options.partial === 'boolean') {
+    if (typeof options.partial === "boolean") {
       query.partial = options.partial;
     }
 
-    write(
-      this,
-      query,
-      { fullResult: true, ...pluckBSONSerializeOptions(options) },
-      (err, result) => {
-        if (err || !result) return callback(err, result);
-        if (isExplain && result.documents && result.documents[0]) {
-          return callback(undefined, result.documents[0]);
-        }
-
-        callback(undefined, result);
+    write(this, query, { fullResult: true, ...pluckBSONSerializeOptions(options) }, (err, result) => {
+      if (err || !result) return callback(err, result);
+      if (isExplain && result.documents && result.documents[0]) {
+        return callback(undefined, result.documents[0]);
       }
-    );
+
+      callback(undefined, result);
+    });
   }
 
   /** @internal */
-  getMore(
-    ns: MongoDBNamespace,
-    cursorId: Long,
-    options: GetMoreOptions,
-    callback: Callback<Document>
-  ): void {
-    const fullResult = typeof options.fullResult === 'boolean' ? options.fullResult : false;
+  getMore(ns: MongoDBNamespace, cursorId: Long, options: GetMoreOptions, callback: Callback<Document>): void {
+    const fullResult = typeof options.fullResult === "boolean" ? options.fullResult : false;
     const wireVersion = maxWireVersion(this);
     if (!cursorId) {
-      callback(new MongoError('Invalid internal cursor state, no known cursor id'));
+      callback(new MongoError("Invalid internal cursor state, no known cursor id"));
       return;
     }
 
@@ -501,21 +465,21 @@ export class Connection extends EventEmitter {
 
     const getMoreCmd: Document = {
       getMore: cursorId,
-      collection: ns.collection
+      collection: ns.collection,
     };
 
-    if (typeof options.batchSize === 'number') {
+    if (typeof options.batchSize === "number") {
       getMoreCmd.batchSize = Math.abs(options.batchSize);
     }
 
-    if (typeof options.maxAwaitTimeMS === 'number') {
+    if (typeof options.maxAwaitTimeMS === "number") {
       getMoreCmd.maxTimeMS = options.maxAwaitTimeMS;
     }
 
     const commandOptions = Object.assign(
       {
         returnFieldSelector: null,
-        documentsReturnedIn: 'nextBatch'
+        documentsReturnedIn: "nextBatch",
       },
       options
     );
@@ -524,24 +488,14 @@ export class Connection extends EventEmitter {
   }
 
   /** @internal */
-  killCursors(
-    ns: MongoDBNamespace,
-    cursorIds: Long[],
-    options: CommandOptions,
-    callback: Callback
-  ): void {
+  killCursors(ns: MongoDBNamespace, cursorIds: Long[], options: CommandOptions, callback: Callback): void {
     if (!cursorIds || !Array.isArray(cursorIds)) {
-      throw new TypeError('Invalid list of cursor ids provided: ' + cursorIds);
+      throw new TypeError("Invalid list of cursor ids provided: " + cursorIds);
     }
 
     if (maxWireVersion(this) < 4) {
       try {
-        write(
-          this,
-          new KillCursor(ns.toString(), cursorIds),
-          { noResponse: true, ...options },
-          callback
-        );
+        write(this, new KillCursor(ns.toString(), cursorIds), { noResponse: true, ...options }, callback);
       } catch (err) {
         callback(err);
       }
@@ -556,13 +510,11 @@ export class Connection extends EventEmitter {
       (err, response) => {
         if (err || !response) return callback(err);
         if (response.cursorNotFound) {
-          return callback(new MongoNetworkError('cursor killed or timed out'), null);
+          return callback(new MongoNetworkError("cursor killed or timed out"), null);
         }
 
         if (!Array.isArray(response.documents) || response.documents.length === 0) {
-          return callback(
-            new MongoError(`invalid killCursors result returned for cursor id ${cursorIds[0]}`)
-          );
+          return callback(new MongoError(`invalid killCursors result returned for cursor id ${cursorIds[0]}`));
         }
 
         callback(undefined, response.documents[0]);
@@ -585,7 +537,7 @@ export class CryptoConnection extends Connection {
   command(ns: MongoDBNamespace, cmd: Document, options: CommandOptions, callback: Callback): void {
     const autoEncrypter = this[kAutoEncrypter];
     if (!autoEncrypter) {
-      return callback(new MongoError('No AutoEncrypter available for encryption'));
+      return callback(new MongoError("No AutoEncrypter available for encryption"));
     }
 
     const serverWireVersion = maxWireVersion(this);
@@ -595,7 +547,7 @@ export class CryptoConnection extends Connection {
     }
 
     if (serverWireVersion < 8) {
-      callback(new MongoError('Auto-encryption requires a minimum MongoDB version of 4.2'));
+      callback(new MongoError("Auto-encryption requires a minimum MongoDB version of 4.2"));
       return;
     }
 
@@ -633,7 +585,7 @@ function supportsOpMsg(conn: Connection) {
 function messageHandler(conn: Connection) {
   return function messageHandler(message: BinMsg | Response) {
     // always emit the message, in case we are streaming
-    conn.emit('message', message);
+    conn.emit("message", message);
     const operationDescription = conn[kQueue].get(message.responseTo);
     if (!operationDescription) {
       return;
@@ -645,7 +597,7 @@ function messageHandler(conn: Connection) {
     // track response, however the server currently synthetically produces remote requests
     // making the `responseTo` change on each response
     conn[kQueue].delete(message.responseTo);
-    if ('moreToCome' in message && message.moreToCome) {
+    if ("moreToCome" in message && message.moreToCome) {
       // requeue the callback for next synthetic request
       conn[kQueue].set(message.requestId, operationDescription);
     } else if (operationDescription.socketTimeoutOverride) {
@@ -696,20 +648,15 @@ function messageHandler(conn: Connection) {
 }
 
 function streamIdentifier(stream: Stream) {
-  if (typeof stream.address === 'function') {
+  if (typeof stream.address === "function") {
     return `${stream.remoteAddress}:${stream.remotePort}`;
   }
 
-  return uuidV4().toString('hex');
+  return uuidV4().toString("hex");
 }
 
-function write(
-  conn: Connection,
-  command: WriteProtocolMessageType,
-  options: CommandOptions,
-  callback: Callback
-) {
-  if (typeof options === 'function') {
+function write(conn: Connection, command: WriteProtocolMessageType, options: CommandOptions, callback: Callback) {
+  if (typeof options === "function") {
     callback = options;
   }
 
@@ -718,17 +665,17 @@ function write(
     requestId: command.requestId,
     cb: callback,
     session: options.session,
-    fullResult: typeof options.fullResult === 'boolean' ? options.fullResult : false,
-    noResponse: typeof options.noResponse === 'boolean' ? options.noResponse : false,
+    fullResult: typeof options.fullResult === "boolean" ? options.fullResult : false,
+    noResponse: typeof options.noResponse === "boolean" ? options.noResponse : false,
     documentsReturnedIn: options.documentsReturnedIn,
     command: !!options.command,
 
     // for BSON parsing
-    promoteLongs: typeof options.promoteLongs === 'boolean' ? options.promoteLongs : true,
-    promoteValues: typeof options.promoteValues === 'boolean' ? options.promoteValues : true,
-    promoteBuffers: typeof options.promoteBuffers === 'boolean' ? options.promoteBuffers : false,
-    raw: typeof options.raw === 'boolean' ? options.raw : false,
-    started: 0
+    promoteLongs: typeof options.promoteLongs === "boolean" ? options.promoteLongs : true,
+    promoteValues: typeof options.promoteValues === "boolean" ? options.promoteValues : true,
+    promoteBuffers: typeof options.promoteBuffers === "boolean" ? options.promoteBuffers : false,
+    raw: typeof options.raw === "boolean" ? options.raw : false,
+    started: 0,
   };
 
   if (conn[kDescription] && conn[kDescription].compressor) {
@@ -739,7 +686,7 @@ function write(
     }
   }
 
-  if (typeof options.socketTimeout === 'number') {
+  if (typeof options.socketTimeout === "number") {
     operationDescription.socketTimeoutOverride = true;
     conn[kStream].setTimeout(options.socketTimeout);
   }
@@ -751,10 +698,7 @@ function write(
     operationDescription.started = now();
     operationDescription.cb = (err, reply) => {
       if (err) {
-        conn.emit(
-          Connection.COMMAND_FAILED,
-          new CommandFailedEvent(conn, command, err, operationDescription.started)
-        );
+        conn.emit(Connection.COMMAND_FAILED, new CommandFailedEvent(conn, command, err, operationDescription.started));
       } else {
         if (reply && (reply.ok === 0 || reply.$err)) {
           conn.emit(
@@ -769,7 +713,7 @@ function write(
         }
       }
 
-      if (typeof callback === 'function') {
+      if (typeof callback === "function") {
         callback(err, reply);
       }
     };

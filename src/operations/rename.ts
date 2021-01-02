@@ -1,12 +1,12 @@
-import { checkCollectionName, Callback } from '../utils';
-import { loadCollection } from '../dynamic_loaders';
-import { RunAdminCommandOperation } from './run_command';
-import { defineAspects, Aspect } from './operation';
-import type { Server } from '../sdam/server';
-import type { Collection } from '../collection';
-import type { CommandOperationOptions } from './command';
-import { MongoError } from '../error';
-import type { ClientSession } from '../sessions';
+import { checkCollectionName, Callback } from '../utils.ts';
+import { loadCollection } from '../dynamic_loaders.ts';
+import { RunAdminCommandOperation } from './run_command.ts';
+import { defineAspects, Aspect } from './operation.ts';
+import type { Server } from '../sdam/server.ts';
+import type { Collection } from '../collection.ts';
+import type { CommandOperationOptions } from './command.ts';
+import { MongoError } from '../error.ts';
+import type { ClientSession } from '../sessions.ts';
 
 /** @public */
 export interface RenameOptions extends CommandOperationOptions {

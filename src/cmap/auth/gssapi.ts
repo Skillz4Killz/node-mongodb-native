@@ -1,14 +1,12 @@
-import { AuthProvider, AuthContext } from './auth_provider';
-import { MongoError } from '../../error';
-import { Kerberos, KerberosClient } from '../../deps';
-import { Callback, ns } from '../../utils';
-import type { Document } from '../../bson';
+import { AuthProvider, AuthContext } from './auth_provider.ts';
+import { MongoError } from '../../error.ts';
+import { Kerberos, KerberosClient } from '../../deps.ts';
+import { Callback, ns } from '../../utils.ts';
+import type { Document } from '../../bson.ts';
 
 type MechanismProperties = {
   gssapiCanonicalizeHostName?: boolean;
 };
-
-import * as dns from 'dns';
 
 export class GSSAPI extends AuthProvider {
   auth(authContext: AuthContext, callback: Callback): void {
@@ -59,6 +57,7 @@ export class GSSAPI extends AuthProvider {
     });
   }
 }
+
 function makeKerberosClient(authContext: AuthContext, callback: Callback<KerberosClient>): void {
   const { host, port } = authContext.options;
   const { credentials } = authContext;
@@ -94,7 +93,7 @@ function makeKerberosClient(authContext: AuthContext, callback: Callback<Kerbero
       }
 
       Kerberos.initializeClient(
-        `${serviceName}${process.platform === 'win32' ? '/' : '@'}${host}`,
+        `${serviceName}${Deno.build.os === 'windows' ? '/' : '@'}${host}`,
         initOptions,
         (err: string, client: KerberosClient): void => {
           if (err) return callback(new MongoError(err));

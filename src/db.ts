@@ -1,4 +1,4 @@
-import { deprecate } from 'util';
+import { ObjectId, Code } from "../deps.ts";
 import {
   emitDeprecatedOptionWarning,
   Callback,
@@ -7,51 +7,51 @@ import {
   deprecateOptions,
   MongoDBNamespace,
   getTopology
-} from './utils';
-import { loadAdmin } from './dynamic_loaders';
-import { AggregationCursor } from './cursor/aggregation_cursor';
-import { ObjectId, Code, Document, BSONSerializeOptions, resolveBSONOptions } from './bson';
-import { ReadPreference, ReadPreferenceLike } from './read_preference';
-import { MongoError } from './error';
-import { Collection, CollectionOptions } from './collection';
-import { ChangeStream, ChangeStreamOptions } from './change_stream';
-import * as CONSTANTS from './constants';
-import { WriteConcern, WriteConcernOptions } from './write_concern';
-import { ReadConcern } from './read_concern';
-import { Logger, LoggerOptions } from './logger';
-import type { AggregateOptions } from './operations/aggregate';
-import { AddUserOperation, AddUserOptions } from './operations/add_user';
-import { CollectionsOperation } from './operations/collections';
-import { DbStatsOperation, DbStatsOptions } from './operations/stats';
-import { RunCommandOperation, RunCommandOptions } from './operations/run_command';
-import { CreateCollectionOperation, CreateCollectionOptions } from './operations/create_collection';
+} from './utils.ts';
+import { loadAdmin } from './dynamic_loaders.ts';
+import { AggregationCursor } from './cursor/aggregation_cursor.ts';
+import { Document, BSONSerializeOptions, resolveBSONOptions } from './bson.ts';
+import { ReadPreference, ReadPreferenceLike } from './read_preference.ts';
+import { MongoError } from './error.ts';
+import { Collection, CollectionOptions } from './collection.ts';
+import { ChangeStream, ChangeStreamOptions } from './change_stream.ts';
+import * as CONSTANTS from './constants.ts';
+import { WriteConcern, WriteConcernOptions } from './write_concern.ts';
+import { ReadConcern } from './read_concern.ts';
+import { Logger, LoggerOptions } from './logger.ts';
+import type { AggregateOptions } from './operations/aggregate.ts';
+import { AddUserOperation, AddUserOptions } from './operations/add_user.ts';
+import { CollectionsOperation } from './operations/collections.ts';
+import { DbStatsOperation, DbStatsOptions } from './operations/stats.ts';
+import { RunCommandOperation, RunCommandOptions } from './operations/run_command.ts';
+import { CreateCollectionOperation, CreateCollectionOptions } from './operations/create_collection.ts';
 import {
   CreateIndexOperation,
   EnsureIndexOperation,
   IndexInformationOperation,
   CreateIndexesOptions,
   IndexSpecification
-} from './operations/indexes';
+} from './operations/indexes.ts';
 import {
   DropCollectionOperation,
   DropDatabaseOperation,
   DropDatabaseOptions,
   DropCollectionOptions
-} from './operations/drop';
-import { ListCollectionsCursor, ListCollectionsOptions } from './operations/list_collections';
-import { ProfilingLevelOperation, ProfilingLevelOptions } from './operations/profiling_level';
-import { RemoveUserOperation, RemoveUserOptions } from './operations/remove_user';
-import { RenameOperation, RenameOptions } from './operations/rename';
+} from './operations/drop.ts';
+import { ListCollectionsCursor, ListCollectionsOptions } from './operations/list_collections.ts';
+import { ProfilingLevelOperation, ProfilingLevelOptions } from './operations/profiling_level.ts';
+import { RemoveUserOperation, RemoveUserOptions } from './operations/remove_user.ts';
+import { RenameOperation, RenameOptions } from './operations/rename.ts';
 import {
   SetProfilingLevelOperation,
   ProfilingLevel,
   SetProfilingLevelOptions
-} from './operations/set_profiling_level';
-import { executeOperation } from './operations/execute_operation';
-import { EvalOperation, EvalOptions } from './operations/eval';
-import type { IndexInformationOptions } from './operations/common_functions';
-import type { MongoClient, PkFactory } from './mongo_client';
-import type { Admin } from './admin';
+} from './operations/set_profiling_level.ts';
+import { executeOperation } from './operations/execute_operation.ts';
+import { EvalOperation, EvalOptions } from './operations/eval.ts';
+import type { IndexInformationOptions } from './operations/common_functions.ts';
+import type { MongoClient, PkFactory } from './mongo_client.ts';
+import type { Admin } from './admin.ts';
 
 // Allowed parameters
 const legalOptionNames = [

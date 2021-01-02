@@ -1,19 +1,19 @@
-import { ReadPreference } from '../read_preference';
+import { ReadPreference } from '../read_preference.ts';
 import {
   maxWireVersion,
   applyRetryableWrites,
   decorateWithCollation,
   hasAtomicOperators,
   Callback
-} from '../utils';
-import { MongoError } from '../error';
-import { CommandOperation, CommandOperationOptions } from './command';
-import { defineAspects, Aspect } from './operation';
-import type { Document } from '../bson';
-import type { Server } from '../sdam/server';
-import type { Collection } from '../collection';
-import { Sort, formatSort } from '../sort';
-import type { ClientSession } from '../sessions';
+} from '../utils.ts';
+import { MongoError } from '../error.ts';
+import { CommandOperation, CommandOperationOptions } from './command.ts';
+import { defineAspects, Aspect } from './operation.ts';
+import type { Document } from '../bson.ts';
+import type { Server } from '../sdam/server.ts';
+import type { Collection } from '../collection.ts';
+import { Sort, formatSort } from '../sort.ts';
+import type { ClientSession } from '../sessions.ts';
 
 /** @public */
 export interface FindAndModifyOptions extends CommandOperationOptions {

@@ -3,15 +3,15 @@ import {
   CommandOperationOptions,
   OperationParent,
   CollationOptions
-} from './command';
-import { ReadPreference } from '../read_preference';
-import { MongoError } from '../error';
-import { maxWireVersion } from '../utils';
-import { Aspect, defineAspects, Hint } from './operation';
-import type { Callback } from '../utils';
-import type { Document } from '../bson';
-import type { Server } from '../sdam/server';
-import type { ClientSession } from '../sessions';
+} from './command.ts';
+import { ReadPreference } from '../read_preference.ts';
+import { MongoError } from '../error.ts';
+import { maxWireVersion } from '../utils.ts';
+import { Aspect, defineAspects, Hint } from './operation.ts';
+import type { Callback } from '../utils.ts';
+import type { Document } from '../bson.ts';
+import type { Server } from '../sdam/server.ts';
+import type { ClientSession } from '../sessions.ts';
 
 /** @internal */
 export const DB_AGGREGATE_COLLECTION = 1 as const;

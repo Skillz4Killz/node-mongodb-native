@@ -1,20 +1,20 @@
-import * as fs from 'fs';
-import { Logger } from '../logger';
-import { ReadPreference } from '../read_preference';
-import { MongoError, AnyError } from '../error';
-import { ServerAddress, Topology, TopologyOptions } from '../sdam/topology';
-import { AUTH_MECHANISMS, parseConnectionString } from '../connection_string';
-import { ReadConcern } from '../read_concern';
-import { emitDeprecationWarning, Callback } from '../utils';
-import { CMAP_EVENT_NAMES } from '../cmap/events';
-import { MongoCredentials } from '../cmap/auth/mongo_credentials';
-import * as BSON from '../bson';
-import type { Document } from '../bson';
-import type { MongoClient } from '../mongo_client';
-import { ConnectionOptions, Connection } from '../cmap/connection';
-import { AuthMechanism, AuthMechanismId } from '../cmap/auth/defaultAuthProviders';
-import { Server } from '../sdam/server';
-import { WRITE_CONCERN_KEYS } from '../write_concern';
+import { Buffer } from "../../deps.ts";
+import { Logger } from '../logger.ts';
+import { ReadPreference } from '../read_preference.ts';
+import { MongoError, AnyError } from '../error.ts';
+import { ServerAddress, Topology, TopologyOptions } from '../sdam/topology.ts';
+import { AUTH_MECHANISMS, parseConnectionString } from '../connection_string.ts';
+import { ReadConcern } from '../read_concern.ts';
+import { emitDeprecationWarning, Callback } from '../utils.ts';
+import { CMAP_EVENT_NAMES } from '../cmap/events.ts';
+import { MongoCredentials } from '../cmap/auth/mongo_credentials.ts';
+import * as BSON from '../bson.ts';
+import type { Document } from '../bson.ts';
+import type { MongoClient } from '../mongo_client.ts';
+import { ConnectionOptions, Connection } from '../cmap/connection.ts';
+import { AuthMechanism, AuthMechanismId } from '../cmap/auth/defaultAuthProviders.ts';
+import { Server } from '../sdam/server.ts';
+import { WRITE_CONCERN_KEYS } from '../write_concern.ts';
 
 const validOptionNames = [
   'poolSize',

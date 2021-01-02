@@ -1,10 +1,10 @@
-import { MongoCR } from './mongocr';
-import { X509 } from './x509';
-import { Plain } from './plain';
-import { GSSAPI } from './gssapi';
-import { ScramSHA1, ScramSHA256 } from './scram';
-import { MongoDBAWS } from './mongodb_aws';
-import type { AuthProvider } from './auth_provider';
+import { MongoCR } from './mongocr.ts';
+import { X509 } from './x509.ts';
+import { Plain } from './plain.ts';
+import { GSSAPI } from './gssapi.ts';
+import { ScramSHA1, ScramSHA256 } from './scram.ts';
+import { MongoDBAWS } from './mongodb_aws.ts';
+import type { AuthProvider } from './auth_provider.ts';
 
 /** @public */
 export const AuthMechanism = {

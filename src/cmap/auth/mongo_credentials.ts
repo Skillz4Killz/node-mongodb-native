@@ -1,7 +1,7 @@
 // Resolves the default auth mechanism according to
 
-import type { Document } from '../../bson';
-import { AuthMechanismId, AuthMechanism } from './defaultAuthProviders';
+import type { Document } from '../../bson.ts';
+import { AuthMechanismId, AuthMechanism } from './defaultAuthProviders.ts';
 
 // https://github.com/mongodb/specifications/blob/master/source/auth/auth.rst
 function getDefaultAuthMechanism(ismaster?: Document): AuthMechanismId {
@@ -61,16 +61,16 @@ export class MongoCredentials {
     this.mechanismProperties = options.mechanismProperties || {};
 
     if (this.mechanism.match(/MONGODB-AWS/i)) {
-      if (this.username == null && process.env.AWS_ACCESS_KEY_ID) {
-        this.username = process.env.AWS_ACCESS_KEY_ID;
+      if (this.username == null && Deno.env.get("AWS_ACCESS_KEY_ID")) {
+        this.username = Deno.env.get("AWS_ACCESS_KEY_ID")!;
       }
 
-      if (this.password == null && process.env.AWS_SECRET_ACCESS_KEY) {
-        this.password = process.env.AWS_SECRET_ACCESS_KEY;
+      if (this.password == null && Deno.env.get("AWS_SECRET_ACCESS_KEY")) {
+        this.password = Deno.env.get("AWS_SECRET_ACCESS_KEY")!;
       }
 
-      if (this.mechanismProperties.AWS_SESSION_TOKEN == null && process.env.AWS_SESSION_TOKEN) {
-        this.mechanismProperties.AWS_SESSION_TOKEN = process.env.AWS_SESSION_TOKEN;
+      if (this.mechanismProperties.AWS_SESSION_TOKEN == null && Deno.env.get("AWS_SESSION_TOKEN")) {
+        this.mechanismProperties.AWS_SESSION_TOKEN = Deno.env.get("AWS_SESSION_TOKEN");
       }
     }
 

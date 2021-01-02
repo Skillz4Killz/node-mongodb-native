@@ -1,4 +1,4 @@
-import { MongoError } from './error';
+import { MongoError } from './error.ts';
 
 /** @public */
 export const ExplainVerbosity = {

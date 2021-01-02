@@ -1,6 +1,5 @@
-import * as dns from 'dns';
-import { Logger, LoggerOptions } from '../logger';
-import { EventEmitter } from 'events';
+import { Logger, LoggerOptions } from "../logger.ts";
+import { EventEmitter } from "../../deps.ts";
 
 /**
  * Determines whether a provided address matches the provided parent domain in order
@@ -12,8 +11,8 @@ import { EventEmitter } from 'events';
  */
 function matchesParentDomain(srvAddress: string, parentDomain: string): boolean {
   const regex = /^.*?\./;
-  const srv = `.${srvAddress.replace(regex, '')}`;
-  const parent = `.${parentDomain.replace(regex, '')}`;
+  const srv = `.${srvAddress.replace(regex, "")}`;
+  const parent = `.${parentDomain.replace(regex, "")}`;
   return srv.endsWith(parent);
 }
 
@@ -52,13 +51,13 @@ export class SrvPoller extends EventEmitter {
     super();
 
     if (!options || !options.srvHost) {
-      throw new TypeError('options for SrvPoller must exist and include srvHost');
+      throw new TypeError("options for SrvPoller must exist and include srvHost");
     }
 
     this.srvHost = options.srvHost;
     this.rescanSrvIntervalMS = 60000;
     this.heartbeatFrequencyMS = options.heartbeatFrequencyMS || 10000;
-    this.logger = new Logger('srvPoller', options);
+    this.logger = new Logger("srvPoller", options);
 
     this.haMode = false;
     this.generation = 0;
@@ -99,7 +98,7 @@ export class SrvPoller extends EventEmitter {
   success(srvRecords: dns.SrvRecord[]): void {
     this.haMode = false;
     this.schedule();
-    this.emit('srvRecordDiscovery', new SrvPollingEvent(srvRecords));
+    this.emit("srvRecordDiscovery", new SrvPollingEvent(srvRecords));
   }
 
   failure(message: string, obj?: NodeJS.ErrnoException): void {
@@ -109,10 +108,7 @@ export class SrvPoller extends EventEmitter {
   }
 
   parentDomainMismatch(srvRecord: dns.SrvRecord): void {
-    this.logger.warn(
-      `parent domain mismatch on SRV record (${srvRecord.name}:${srvRecord.port})`,
-      srvRecord
-    );
+    this.logger.warn(`parent domain mismatch on SRV record (${srvRecord.name}:${srvRecord.port})`, srvRecord);
   }
 
   _poll(): void {
@@ -123,7 +119,7 @@ export class SrvPoller extends EventEmitter {
       }
 
       if (err) {
-        this.failure('DNS error', err);
+        this.failure("DNS error", err);
         return;
       }
 
@@ -137,7 +133,7 @@ export class SrvPoller extends EventEmitter {
       });
 
       if (!finalAddresses.length) {
-        this.failure('No valid addresses found at host');
+        this.failure("No valid addresses found at host");
         return;
       }
 

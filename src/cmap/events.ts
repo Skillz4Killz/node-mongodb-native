@@ -1,9 +1,9 @@
-import { GetMore, KillCursor, Msg, WriteProtocolMessageType } from './commands';
-import { calculateDurationInMs, deepCopy } from '../utils';
-import type { ConnectionPool, ConnectionPoolOptions } from './connection_pool';
-import type { Connection } from './connection';
-import type { Document } from '../bson';
-import type { AnyError } from '../error';
+import { GetMore, KillCursor, Msg, WriteProtocolMessageType } from './commands.ts';
+import { calculateDurationInMs, deepCopy } from '../utils.ts';
+import type { ConnectionPool, ConnectionPoolOptions } from './connection_pool.ts';
+import type { Connection } from './connection.ts';
+import type { Document } from '../bson.ts';
+import type { AnyError } from '../error.ts';
 
 /**
  * The base export class for all monitoring events published from the connection pool

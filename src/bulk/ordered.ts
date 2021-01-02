@@ -1,9 +1,9 @@
-import * as BSON from '../bson';
-import { BulkOperationBase, Batch, BatchType, BulkWriteOptions, BatchTypeId } from './common';
-import type { Document } from '../bson';
-import type { Collection } from '../collection';
-import type { UpdateStatement } from '../operations/update';
-import type { DeleteStatement } from '../operations/delete';
+import { BulkOperationBase, Batch, BatchType, BulkWriteOptions, BatchTypeId } from './common.ts';
+import type { Document } from '../bson.ts';
+import type { Collection } from '../collection.ts';
+import type { UpdateStatement } from '../operations/update.ts';
+import type { DeleteStatement } from '../operations/delete.ts';
+import { calculateObjectSize } from "../../deps.ts";
 
 /** @public */
 export class OrderedBulkOperation extends BulkOperationBase {
@@ -16,7 +16,7 @@ export class OrderedBulkOperation extends BulkOperationBase {
     document: Document | UpdateStatement | DeleteStatement
   ): this {
     // Get the bsonSize
-    const bsonSize = BSON.calculateObjectSize(document, {
+    const bsonSize = calculateObjectSize(document, {
       checkKeys: false,
       // Since we don't know what the user selected for BSON options here,
       // err on the safe side, and check the size with ignoreUndefined: false.

@@ -1,17 +1,17 @@
-import { Duplex, DuplexOptions } from 'stream';
-import { Response, Msg, BinMsg, Query, WriteProtocolMessageType, MessageHeader } from './commands';
-import { MongoError, MongoParseError } from '../error';
-import { OP_COMPRESSED, OP_MSG } from './wire_protocol/constants';
+import { Buffer } from "../../deps.ts";
+import { Response, Msg, BinMsg, Query, WriteProtocolMessageType, MessageHeader } from './commands.ts';
+import { MongoError, MongoParseError } from '../error.ts';
+import { OP_COMPRESSED, OP_MSG } from './wire_protocol/constants.ts';
 import {
   compress,
   decompress,
   uncompressibleCommands,
   Compressor,
   CompressorName
-} from './wire_protocol/compression';
-import type { Document, BSONSerializeOptions } from '../bson';
-import { BufferPool, Callback } from '../utils';
-import type { ClientSession } from '../sessions';
+} from './wire_protocol/compression.ts';
+import type { Document, BSONSerializeOptions } from '../bson.ts';
+import { BufferPool, Callback } from '../utils.ts';
+import type { ClientSession } from '../sessions.ts';
 
 const MESSAGE_HEADER_SIZE = 16;
 const COMPRESSION_DETAILS_SIZE = 9; // originalOpcode + uncompressedSize, compressorID

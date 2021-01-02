@@ -1,23 +1,21 @@
-import * as os from 'os';
-import * as crypto from 'crypto';
-import { PromiseProvider } from './promise_provider';
-import { MongoError, AnyError } from './error';
-import { WriteConcern, WriteConcernOptions, W } from './write_concern';
-import type { Server } from './sdam/server';
-import type { Topology } from './sdam/topology';
-import type { EventEmitter } from 'events';
-import type { Db } from './db';
-import type { Collection } from './collection';
-import type { OperationOptions, Hint } from './operations/operation';
-import type { ClientSession } from './sessions';
-import { ReadConcern } from './read_concern';
-import type { Connection } from './cmap/connection';
-import { Document, resolveBSONOptions } from './bson';
-import type { IndexSpecification, IndexDirection } from './operations/indexes';
-import type { Explain } from './explain';
-import type { MongoClient } from './mongo_client';
-import type { CommandOperationOptions, OperationParent } from './operations/command';
-import { ReadPreference } from './read_preference';
+import { Buffer, EventEmitter, randomBytes } from "../deps.ts";
+import { PromiseProvider } from "./promise_provider.ts";
+import { MongoError, AnyError } from "./error.ts";
+import { WriteConcern, WriteConcernOptions, W } from "./write_concern.ts";
+import type { Server } from "./sdam/server.ts";
+import type { Topology } from "./sdam/topology.ts";
+import type { Db } from "./db.ts";
+import type { Collection } from "./collection.ts";
+import type { OperationOptions, Hint } from "./operations/operation.ts";
+import type { ClientSession } from "./sessions.ts";
+import { ReadConcern } from "./read_concern.ts";
+import type { Connection } from "./cmap/connection.ts";
+import { Document, resolveBSONOptions } from "./bson.ts";
+import type { IndexSpecification, IndexDirection } from "./operations/indexes.ts";
+import type { Explain } from "./explain.ts";
+import type { MongoClient } from "./mongo_client.ts";
+import type { CommandOperationOptions, OperationParent } from "./operations/command.ts";
+import { ReadPreference } from "./read_preference.ts";
 
 /**
  * MongoDB Driver style callback
@@ -35,16 +33,12 @@ export type AnyOptions = Document;
  * Add a readonly enumerable property.
  * @internal
  */
-export function getSingleProperty(
-  obj: AnyOptions,
-  name: string | number | symbol,
-  value: unknown
-): void {
+export function getSingleProperty(obj: AnyOptions, name: string | number | symbol, value: unknown): void {
   Object.defineProperty(obj, name, {
     enumerable: true,
     get() {
       return value;
-    }
+    },
   });
 }
 
@@ -53,18 +47,15 @@ export function getSingleProperty(
  * @internal
  */
 export function checkCollectionName(collectionName: string): void {
-  if ('string' !== typeof collectionName) {
-    throw new MongoError('collection name must be a String');
+  if ("string" !== typeof collectionName) {
+    throw new MongoError("collection name must be a String");
   }
 
-  if (!collectionName || collectionName.indexOf('..') !== -1) {
-    throw new MongoError('collection names cannot be empty');
+  if (!collectionName || collectionName.indexOf("..") !== -1) {
+    throw new MongoError("collection names cannot be empty");
   }
 
-  if (
-    collectionName.indexOf('$') !== -1 &&
-    collectionName.match(/((^\$cmd)|(oplog\.\$main))/) == null
-  ) {
+  if (collectionName.indexOf("$") !== -1 && collectionName.match(/((^\$cmd)|(oplog\.\$main))/) == null) {
     throw new MongoError("collection names must not contain '$'");
   }
 
@@ -73,8 +64,8 @@ export function checkCollectionName(collectionName: string): void {
   }
 
   // Validate that we are not passing 0x00 in the collection name
-  if (collectionName.indexOf('\x00') !== -1) {
-    throw new MongoError('collection names cannot contain a null character');
+  if (collectionName.indexOf("\x00") !== -1) {
+    throw new MongoError("collection names cannot contain a null character");
   }
 }
 
@@ -87,15 +78,15 @@ export function checkCollectionName(collectionName: string): void {
 export function normalizeHintField(hint?: Hint): Hint | undefined {
   let finalHint = undefined;
 
-  if (typeof hint === 'string') {
+  if (typeof hint === "string") {
     finalHint = hint;
   } else if (Array.isArray(hint)) {
     finalHint = {};
 
-    hint.forEach(param => {
+    hint.forEach((param) => {
       finalHint[param] = 1;
     });
-  } else if (hint != null && typeof hint === 'object') {
+  } else if (hint != null && typeof hint === "object") {
     finalHint = {} as Document;
     for (const name in hint) {
       finalHint[name] = hint[name];
@@ -121,25 +112,25 @@ export function parseIndexOptions(indexSpec: IndexSpecification): IndexOptions {
   let keys;
 
   // Get all the fields accordingly
-  if ('string' === typeof indexSpec) {
+  if ("string" === typeof indexSpec) {
     // 'type'
-    indexes.push(indexSpec + '_' + 1);
+    indexes.push(indexSpec + "_" + 1);
     fieldHash[indexSpec] = 1;
   } else if (Array.isArray(indexSpec)) {
     indexSpec.forEach((f: any) => {
-      if ('string' === typeof f) {
+      if ("string" === typeof f) {
         // [{location:'2d'}, 'type']
-        indexes.push(f + '_' + 1);
+        indexes.push(f + "_" + 1);
         fieldHash[f] = 1;
       } else if (Array.isArray(f)) {
         // [['location', '2d'],['type', 1]]
-        indexes.push(f[0] + '_' + (f[1] || 1));
+        indexes.push(f[0] + "_" + (f[1] || 1));
         fieldHash[f[0]] = f[1] || 1;
       } else if (isObject(f)) {
         // [{location:'2d'}, {type:1}]
         keys = Object.keys(f);
-        keys.forEach(k => {
-          indexes.push(k + '_' + (f as AnyOptions)[k]);
+        keys.forEach((k) => {
+          indexes.push(k + "_" + (f as AnyOptions)[k]);
           fieldHash[k] = (f as AnyOptions)[k];
         });
       } else {
@@ -149,16 +140,16 @@ export function parseIndexOptions(indexSpec: IndexSpecification): IndexOptions {
   } else if (isObject(indexSpec)) {
     // {location:'2d', type:1}
     keys = Object.keys(indexSpec);
-    keys.forEach(key => {
-      indexes.push(key + '_' + indexSpec[key]);
+    keys.forEach((key) => {
+      indexes.push(key + "_" + indexSpec[key]);
       fieldHash[key] = indexSpec[key];
     });
   }
 
   return {
-    name: indexes.join('_'),
+    name: indexes.join("_"),
     keys: keys,
-    fieldHash: fieldHash
+    fieldHash: fieldHash,
   };
 }
 
@@ -169,14 +160,14 @@ export function parseIndexOptions(indexSpec: IndexSpecification): IndexOptions {
  */
 // eslint-disable-next-line @typescript-eslint/ban-types
 export function isObject(arg: unknown): arg is object {
-  return '[object Object]' === Object.prototype.toString.call(arg);
+  return "[object Object]" === Object.prototype.toString.call(arg);
 }
 
 /** @internal */
 export function debugOptions(debugFields: string[], options?: AnyOptions): Document {
   const finalOptions: AnyOptions = {};
   if (!options) return finalOptions;
-  debugFields.forEach(n => {
+  debugFields.forEach((n) => {
     finalOptions[n] = options[n];
   });
 
@@ -239,7 +230,7 @@ export function executeLegacyOperation<T>(
   const Promise = PromiseProvider.get();
 
   if (!Array.isArray(args)) {
-    throw new TypeError('This method requires an array of arguments to apply');
+    throw new TypeError("This method requires an array of arguments to apply");
   }
 
   options = options ?? {};
@@ -259,14 +250,11 @@ export function executeLegacyOperation<T>(
       const optionsIndex = args.length - 2;
       args[optionsIndex] = Object.assign({}, args[optionsIndex], { session: session });
     } else if (opOptions.session && opOptions.session.hasEnded) {
-      throw new MongoError('Use of expired sessions is not permitted');
+      throw new MongoError("Use of expired sessions is not permitted");
     }
   }
 
-  function makeExecuteCallback(
-    resolve: (value?: Document) => void,
-    reject: (reason?: AnyError) => void
-  ) {
+  function makeExecuteCallback(resolve: (value?: Document) => void, reject: (reason?: AnyError) => void) {
     return function (err?: AnyError, result?: any) {
       if (session && session.owner === owner && !options?.returnsCursor) {
         session.endSession(() => {
@@ -282,11 +270,11 @@ export function executeLegacyOperation<T>(
   }
 
   // Execute using callback
-  if (typeof callback === 'function') {
+  if (typeof callback === "function") {
     callback = args.pop();
     const handler = makeExecuteCallback(
-      result => callback(undefined, result),
-      err => callback(err, null)
+      (result) => callback(undefined, result),
+      (err) => callback(err, null)
     );
     args.push(handler);
 
@@ -300,7 +288,7 @@ export function executeLegacyOperation<T>(
 
   // Return a Promise
   if (args[args.length - 1] != null) {
-    throw new TypeError('final argument to `executeLegacyOperation` must be a callback');
+    throw new TypeError("final argument to `executeLegacyOperation` must be a callback");
   }
 
   return new Promise<any>((resolve, reject) => {
@@ -386,10 +374,8 @@ export function applyWriteConcern<T extends HasWriteConcern>(
  * @param maybePromise - An object that could be a promise
  * @returns true if the provided value is a Promise
  */
-export function isPromiseLike<T = any>(
-  maybePromise?: PromiseLike<T> | void
-): maybePromise is Promise<T> {
-  return !!maybePromise && typeof maybePromise.then === 'function';
+export function isPromiseLike<T = any>(maybePromise?: PromiseLike<T> | void): maybePromise is Promise<T> {
+  return !!maybePromise && typeof maybePromise.then === "function";
 }
 
 /**
@@ -406,7 +392,7 @@ export function decorateWithCollation(
   options: AnyOptions
 ): void {
   const capabilities = getTopology(target).capabilities();
-  if (options.collation && typeof options.collation === 'object') {
+  if (options.collation && typeof options.collation === "object") {
     if (capabilities && capabilities.commandsTakeCollation) {
       command.collation = options.collation;
     } else {
@@ -463,18 +449,18 @@ export function decorateWithExplain(command: Document, explain: Explain): Docume
 export function getTopology(provider: MongoClient | Db | Collection): Topology {
   if (`topology` in provider && provider.topology) {
     return provider.topology;
-  } else if ('client' in provider.s && provider.s.client.topology) {
+  } else if ("client" in provider.s && provider.s.client.topology) {
     return provider.s.client.topology;
-  } else if ('db' in provider.s && provider.s.db.s.client.topology) {
+  } else if ("db" in provider.s && provider.s.db.s.client.topology) {
     return provider.s.db.s.client.topology;
   }
 
-  throw new MongoError('MongoClient must be connected to perform this operation');
+  throw new MongoError("MongoClient must be connected to perform this operation");
 }
 
 /** @internal */
 export function emitDeprecationWarning(msg: string): void {
-  return process.emitWarning(msg, 'DeprecationWarning');
+  return process.emitWarning(msg, "DeprecationWarning");
 }
 
 /**
@@ -509,11 +495,7 @@ export interface DeprecateOptionsConfig {
  * @param fn - the target function of deprecation
  * @returns modified function that warns once per deprecated option, and executes original function
  */
-export function deprecateOptions(
-  this: unknown,
-  config: DeprecateOptionsConfig,
-  fn: (...args: any[]) => any
-): any {
+export function deprecateOptions(this: unknown, config: DeprecateOptionsConfig, fn: (...args: any[]) => any): any {
   if ((process as any).noDeprecation === true) {
     return fn;
   }
@@ -535,7 +517,7 @@ export function deprecateOptions(
         optionsWarned.add(deprecatedOption);
         const msg = msgHandler(config.name, deprecatedOption);
         emitDeprecationWarning(msg);
-        if (this && 'getLogger' in this) {
+        if (this && "getLogger" in this) {
           const logger = this.getLogger();
           if (logger) {
             logger.warn(msg);
@@ -593,7 +575,7 @@ export class MongoDBNamespace {
       throw new Error(`Cannot parse namespace from "${namespace}"`);
     }
 
-    const index = namespace.indexOf('.');
+    const index = namespace.indexOf(".");
     return new MongoDBNamespace(namespace.substring(0, index), namespace.substring(index + 1));
   }
 }
@@ -622,7 +604,7 @@ export function maybePromise<T>(
 ): Promise<T> | void {
   const Promise = PromiseProvider.get();
   let result: Promise<T> | void;
-  if (typeof callback !== 'function') {
+  if (typeof callback !== "function") {
     result = new Promise((resolve, reject) => {
       callback = (err, res) => {
         if (err) return reject(err);
@@ -654,12 +636,12 @@ export function maybePromise<T>(
 
 /** @internal */
 export function databaseNamespace(ns: string): string {
-  return ns.split('.')[0];
+  return ns.split(".")[0];
 }
 
 /** @internal */
 export function collectionNamespace(ns: string): string {
-  return ns.split('.').slice(1).join('.');
+  return ns.split(".").slice(1).join(".");
 }
 
 /**
@@ -667,7 +649,7 @@ export function collectionNamespace(ns: string): string {
  * @internal
  */
 export function uuidV4(): Buffer {
-  const result = crypto.randomBytes(16);
+  const result = randomBytes(16);
   result[6] = (result[6] & 0x0f) | 0x40;
   result[8] = (result[8] & 0x3f) | 0x80;
   return result;
@@ -682,7 +664,7 @@ export function uuidV4(): Buffer {
  * @param events - list of events to relay
  */
 export function relayEvents(listener: EventEmitter, emitter: EventEmitter, events: string[]): void {
-  events.forEach(eventName => listener.on(eventName, event => emitter.emit(eventName, event)));
+  events.forEach((eventName) => listener.on(eventName, (event) => emitter.emit(eventName, event)));
 }
 
 /**
@@ -695,7 +677,7 @@ export function maxWireVersion(topologyOrServer?: Connection | Topology | Server
       return topologyOrServer.ismaster.maxWireVersion;
     }
 
-    if ('lastIsMaster' in topologyOrServer && typeof topologyOrServer.lastIsMaster === 'function') {
+    if ("lastIsMaster" in topologyOrServer && typeof topologyOrServer.lastIsMaster === "function") {
       const lastIsMaster = topologyOrServer.lastIsMaster();
       if (lastIsMaster) {
         return lastIsMaster.maxWireVersion;
@@ -704,8 +686,8 @@ export function maxWireVersion(topologyOrServer?: Connection | Topology | Server
 
     if (
       topologyOrServer.description &&
-      'maxWireVersion' in topologyOrServer.description &&
-      'undefined' !== typeof topologyOrServer.description.maxWireVersion
+      "maxWireVersion" in topologyOrServer.description &&
+      "undefined" !== typeof topologyOrServer.description.maxWireVersion
     ) {
       return topologyOrServer.description.maxWireVersion;
     }
@@ -838,7 +820,7 @@ interface StateTable {
 }
 interface ObjectWithState {
   s: { state: string };
-  emit(event: 'stateChanged', state: string, newState: string): void;
+  emit(event: "stateChanged", state: string, newState: string): void;
 }
 interface StateTransitionFunction {
   (target: ObjectWithState, newState: string): void;
@@ -854,7 +836,7 @@ export function makeStateMachine(stateTable: StateTable): StateTransitionFunctio
       );
     }
 
-    target.emit('stateChanged', target.s.state, newState);
+    target.emit("stateChanged", target.s.state, newState);
     target.s.state = newState;
   };
 }
@@ -889,23 +871,23 @@ export interface ClientMetadataOptions {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const NODE_DRIVER_VERSION = require('../package.json').version;
+const NODE_DRIVER_VERSION = require("../package.json").version;
 
 export function makeClientMetadata(options: ClientMetadataOptions): ClientMetadata {
   options = options ?? {};
 
   const metadata: ClientMetadata = {
     driver: {
-      name: 'nodejs',
-      version: NODE_DRIVER_VERSION
+      name: "nodejs",
+      version: NODE_DRIVER_VERSION,
     },
     os: {
       type: os.type(),
       name: process.platform,
-      architecture: process.arch,
-      version: os.release()
+      architecture: Deno.build.arch,
+      version: os.release(),
     },
-    platform: `'Node.js ${process.version}, ${os.endianness} (unified)`
+    platform: `'Node.js ${Deno.version}, ${os.endianness} (unified)`,
   };
 
   // support optionally provided wrapping driver info
@@ -927,7 +909,7 @@ export function makeClientMetadata(options: ClientMetadataOptions): ClientMetada
     // MongoDB requires the appname not exceed a byte length of 128
     const buffer = Buffer.from(options.appname);
     metadata.application = {
-      name: buffer.length > 128 ? buffer.slice(0, 128).toString('utf8') : options.appname
+      name: buffer.length > 128 ? buffer.slice(0, 128).toString("utf8") : options.appname,
     };
   }
 
@@ -943,8 +925,8 @@ export function makeClientMetadata(options: ClientMetadataOptions): ClientMetada
  */
 export function emitDeprecatedOptionWarning(options: AnyOptions | undefined, list: string[]): void {
   if (!options) return;
-  list.forEach(option => {
-    if (typeof options[option] !== 'undefined') {
+  list.forEach((option) => {
+    if (typeof options[option] !== "undefined") {
       emitDeprecationWarning(`option [${option}] is deprecated`);
     }
   });
@@ -958,8 +940,8 @@ export function now(): number {
 
 /** @internal */
 export function calculateDurationInMs(started: number): number {
-  if (typeof started !== 'number') {
-    throw TypeError('numeric value required to calculate duration');
+  if (typeof started !== "number") {
+    throw TypeError("numeric value required to calculate duration");
   }
 
   const elapsed = now() - started;
@@ -1008,8 +990,8 @@ export function makeInterruptibleAsyncInterval(
   options = options ?? {};
   const interval = options.interval || 1000;
   const minInterval = options.minInterval || 500;
-  const immediate = typeof options.immediate === 'boolean' ? options.immediate : false;
-  const clock = typeof options.clock === 'function' ? options.clock : now;
+  const immediate = typeof options.immediate === "boolean" ? options.immediate : false;
+  const clock = typeof options.clock === "function" ? options.clock : now;
 
   function wake() {
     const currentTime = clock();
@@ -1068,7 +1050,7 @@ export function makeInterruptibleAsyncInterval(
     lastWakeTime = 0;
     lastCallTime = clock();
 
-    fn(err => {
+    fn((err) => {
       if (err) throw err;
       reschedule(interval);
     });
@@ -1096,7 +1078,7 @@ export function hasAtomicOperators(doc: Document | Document[]): boolean {
   }
 
   const keys = Object.keys(doc);
-  return keys.length > 0 && keys[0][0] === '$';
+  return keys.length > 0 && keys[0][0] === "$";
 }
 
 /**
@@ -1104,10 +1086,7 @@ export function hasAtomicOperators(doc: Document | Document[]): boolean {
  * then values from parent.
  * @internal
  */
-export function resolveOptions<T extends CommandOperationOptions>(
-  parent: OperationParent | undefined,
-  options?: T
-): T {
+export function resolveOptions<T extends CommandOperationOptions>(parent: OperationParent | undefined, options?: T): T {
   const result: T = Object.assign({}, options, resolveBSONOptions(options, parent));
 
   // Users cannot pass a readConcern/writeConcern to operations in a transaction
@@ -1143,18 +1122,12 @@ export function isSuperset(set: Set<any> | any[], subset: Set<any> | any[]): boo
   return true;
 }
 
-export function isRecord<T extends readonly string[]>(
-  value: unknown,
-  requiredKeys: T
-): value is Record<T[number], any>;
+export function isRecord<T extends readonly string[]>(value: unknown, requiredKeys: T): value is Record<T[number], any>;
 export function isRecord(value: unknown): value is Record<string, any>;
-export function isRecord(
-  value: unknown,
-  requiredKeys: string[] | undefined = undefined
-): value is Record<string, any> {
+export function isRecord(value: unknown, requiredKeys: string[] | undefined = undefined): value is Record<string, any> {
   const toString = Object.prototype.toString;
   const hasOwnProperty = Object.prototype.hasOwnProperty;
-  const isObject = (v: unknown) => toString.call(v) === '[object Object]';
+  const isObject = (v: unknown) => toString.call(v) === "[object Object]";
   if (!isObject(value)) {
     return false;
   }
@@ -1166,7 +1139,7 @@ export function isRecord(
     }
 
     // Check to see if some method exists from the Object exists
-    if (!hasOwnProperty.call(ctor.prototype, 'isPrototypeOf')) {
+    if (!hasOwnProperty.call(ctor.prototype, "isPrototypeOf")) {
       return false;
     }
   }
@@ -1190,7 +1163,7 @@ export function deepCopy<T extends any>(value: T): T {
   if (value == null) {
     return value;
   } else if (Array.isArray(value)) {
-    return value.map(item => deepCopy(item)) as T;
+    return value.map((item) => deepCopy(item)) as T;
   } else if (isRecord(value)) {
     const res = {} as any;
     for (const key in value) {
@@ -1202,13 +1175,13 @@ export function deepCopy<T extends any>(value: T): T {
   const ctor = (value as any).constructor;
   if (ctor) {
     switch (ctor.name.toLowerCase()) {
-      case 'date':
+      case "date":
         return new ctor(Number(value));
-      case 'map':
+      case "map":
         return new Map(value as any) as T;
-      case 'set':
+      case "set":
         return new Set(value as any) as T;
-      case 'buffer':
+      case "buffer":
         return Buffer.from(value as Buffer) as T;
     }
   }
@@ -1216,8 +1189,8 @@ export function deepCopy<T extends any>(value: T): T {
   return value;
 }
 
-const kBuffers = Symbol('buffers');
-const kLength = Symbol('length');
+const kBuffers = Symbol("buffers");
+const kLength = Symbol("length");
 
 /**
  * A pool of Buffers which allow you to read them as if they were one
@@ -1249,8 +1222,8 @@ export class BufferPool {
 
   /** Reads the requested number of bytes, optionally consuming them */
   read(size: number, consume = true): Buffer {
-    if (typeof size !== 'number' || size < 0) {
-      throw new TypeError('Parameter size must be a non-negative number');
+    if (typeof size !== "number" || size < 0) {
+      throw new TypeError("Parameter size must be a non-negative number");
     }
 
     if (size > this[kLength]) {

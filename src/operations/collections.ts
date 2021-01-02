@@ -1,12 +1,11 @@
-import { AbstractOperation, OperationOptions } from './operation';
-import { loadCollection } from '../dynamic_loaders';
-import type { Callback } from '../utils';
-import type { Db } from '../db';
+import { AbstractOperation, OperationOptions } from './operation.ts';
+import { loadCollection } from '../dynamic_loaders.ts';
+import type { Callback } from '../utils.ts';
+import type { Db } from '../db.ts';
 
-// eslint-disable-next-line
-import type { Collection } from '../collection';
-import type { Server } from '../sdam/server';
-import type { ClientSession } from '../sessions';
+import type { Collection } from '../collection.ts';
+import type { Server } from '../sdam/server.ts';
+import type { ClientSession } from '../sessions.ts';
 
 export interface CollectionsOptions extends OperationOptions {
   nameOnly?: boolean;

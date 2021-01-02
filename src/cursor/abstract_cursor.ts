@@ -1,36 +1,28 @@
-import { Callback, maybePromise, MongoDBNamespace } from '../utils';
-import { Long, Document, BSONSerializeOptions, pluckBSONSerializeOptions } from '../bson';
-import { ClientSession } from '../sessions';
-import { MongoError } from '../error';
-import { ReadPreference, ReadPreferenceLike } from '../read_preference';
-import type { Server } from '../sdam/server';
-import type { Topology } from '../sdam/topology';
-import { Readable, Transform } from 'stream';
-import { EventEmitter } from 'events';
-import type { ExecutionResult } from '../operations/execute_operation';
-import { ReadConcern, ReadConcernLike } from '../read_concern';
+import { EventEmitter, Long } from "../../deps.ts";
+import { Callback, maybePromise, MongoDBNamespace } from "../utils.ts";
+import { Document, BSONSerializeOptions, pluckBSONSerializeOptions } from "../bson.ts";
+import { ClientSession } from "../sessions.ts";
+import { MongoError } from "../error.ts";
+import { ReadPreference, ReadPreferenceLike } from "../read_preference.ts";
+import type { Server } from "../sdam/server.ts";
+import type { Topology } from "../sdam/topology.ts";
+import type { ExecutionResult } from "../operations/execute_operation.ts";
+import { ReadConcern, ReadConcernLike } from "../read_concern.ts";
 
-const kId = Symbol('id');
-const kDocuments = Symbol('documents');
-const kServer = Symbol('server');
-const kNamespace = Symbol('namespace');
-const kTopology = Symbol('topology');
-const kSession = Symbol('session');
-const kOptions = Symbol('options');
-const kTransform = Symbol('transform');
-const kInitialized = Symbol('initialized');
-const kClosed = Symbol('closed');
-const kKilled = Symbol('killed');
+const kId = Symbol("id");
+const kDocuments = Symbol("documents");
+const kServer = Symbol("server");
+const kNamespace = Symbol("namespace");
+const kTopology = Symbol("topology");
+const kSession = Symbol("session");
+const kOptions = Symbol("options");
+const kTransform = Symbol("transform");
+const kInitialized = Symbol("initialized");
+const kClosed = Symbol("closed");
+const kKilled = Symbol("killed");
 
 /** @public */
-export const CURSOR_FLAGS = [
-  'tailable',
-  'oplogReplay',
-  'noCursorTimeout',
-  'awaitData',
-  'exhaust',
-  'partial'
-] as const;
+export const CURSOR_FLAGS = ["tailable", "oplogReplay", "noCursorTimeout", "awaitData", "exhaust", "partial"] as const;
 
 /** @public */
 export interface CursorCloseOptions {
@@ -61,7 +53,7 @@ export interface AbstractCursorOptions extends BSONSerializeOptions {
 }
 
 /** @internal */
-export type InternalAbstractCursorOptions = Omit<AbstractCursorOptions, 'readPreference'> & {
+export type InternalAbstractCursorOptions = Omit<AbstractCursorOptions, "readPreference"> & {
   // resolved
   readPreference: ReadPreference;
   readConcern?: ReadConcern;
@@ -98,13 +90,9 @@ export abstract class AbstractCursor extends EventEmitter {
   [kOptions]: InternalAbstractCursorOptions;
 
   /** @event */
-  static readonly CLOSE = 'close' as const;
+  static readonly CLOSE = "close" as const;
 
-  constructor(
-    topology: Topology,
-    namespace: MongoDBNamespace,
-    options: AbstractCursorOptions = {}
-  ) {
+  constructor(topology: Topology, namespace: MongoDBNamespace, options: AbstractCursorOptions = {}) {
     super();
 
     this[kTopology] = topology;
@@ -118,7 +106,7 @@ export abstract class AbstractCursor extends EventEmitter {
         options.readPreference && options.readPreference instanceof ReadPreference
           ? options.readPreference
           : ReadPreference.primary,
-      ...pluckBSONSerializeOptions(options)
+      ...pluckBSONSerializeOptions(options),
     };
 
     const readConcern = ReadConcern.fromOptions(options);
@@ -126,15 +114,15 @@ export abstract class AbstractCursor extends EventEmitter {
       this[kOptions].readConcern = readConcern;
     }
 
-    if (typeof options.batchSize === 'number') {
+    if (typeof options.batchSize === "number") {
       this[kOptions].batchSize = options.batchSize;
     }
 
-    if (typeof options.comment !== 'undefined') {
+    if (typeof options.comment !== "undefined") {
       this[kOptions].comment = options.comment;
     }
 
-    if (typeof options.maxTimeMS === 'number') {
+    if (typeof options.maxTimeMS === "number") {
       this[kOptions].maxTimeMS = options.maxTimeMS;
     }
 
@@ -196,7 +184,7 @@ export abstract class AbstractCursor extends EventEmitter {
 
   [Symbol.asyncIterator](): AsyncIterator<Document | null> {
     return {
-      next: () => this.next().then(value => ({ value, done: value === null }))
+      next: () => this.next().then((value) => ({ value, done: value === null })),
     };
   }
 
@@ -216,7 +204,7 @@ export abstract class AbstractCursor extends EventEmitter {
             } catch (err) {
               callback(err);
             }
-          }
+          },
         })
       );
     }
@@ -227,7 +215,7 @@ export abstract class AbstractCursor extends EventEmitter {
   hasNext(): Promise<boolean>;
   hasNext(callback: Callback<boolean>): void;
   hasNext(callback?: Callback<boolean>): Promise<boolean> | void {
-    return maybePromise(callback, done => {
+    return maybePromise(callback, (done) => {
       if (this[kId] === Long.ZERO) {
         return done(undefined, false);
       }
@@ -254,9 +242,9 @@ export abstract class AbstractCursor extends EventEmitter {
   next(): Promise<Document | null>;
   next(callback: Callback<Document | null>): void;
   next(callback?: Callback<Document | null>): Promise<Document | null> | void {
-    return maybePromise(callback, done => {
+    return maybePromise(callback, (done) => {
       if (this[kId] === Long.ZERO) {
-        return done(new MongoError('Cursor is exhausted'));
+        return done(new MongoError("Cursor is exhausted"));
       }
 
       next(this, true, done);
@@ -269,9 +257,9 @@ export abstract class AbstractCursor extends EventEmitter {
   tryNext(): Promise<Document | null>;
   tryNext(callback: Callback<Document | null>): void;
   tryNext(callback?: Callback<Document | null>): Promise<Document | null> | void {
-    return maybePromise(callback, done => {
+    return maybePromise(callback, (done) => {
       if (this[kId] === Long.ZERO) {
-        return done(new MongoError('Cursor is exhausted'));
+        return done(new MongoError("Cursor is exhausted"));
       }
 
       next(this, false, done);
@@ -286,15 +274,12 @@ export abstract class AbstractCursor extends EventEmitter {
    */
   forEach(iterator: (doc: Document) => boolean | void): Promise<void>;
   forEach(iterator: (doc: Document) => boolean | void, callback: Callback<void>): void;
-  forEach(
-    iterator: (doc: Document) => boolean | void,
-    callback?: Callback<void>
-  ): Promise<void> | void {
-    if (typeof iterator !== 'function') {
-      throw new TypeError('Missing required parameter `iterator`');
+  forEach(iterator: (doc: Document) => boolean | void, callback?: Callback<void>): Promise<void> | void {
+    if (typeof iterator !== "function") {
+      throw new TypeError("Missing required parameter `iterator`");
     }
 
-    return maybePromise(callback, done => {
+    return maybePromise(callback, (done) => {
       const transform = this[kTransform];
       const fetchDocs = () => {
         next(this, true, (err, doc) => {
@@ -327,13 +312,13 @@ export abstract class AbstractCursor extends EventEmitter {
   close(options: CursorCloseOptions): Promise<void>;
   close(options: CursorCloseOptions, callback: Callback): void;
   close(options?: CursorCloseOptions | Callback, callback?: Callback): Promise<void> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
     options = options ?? {};
 
     const needsToEmitClosed = !this[kClosed];
     this[kClosed] = true;
 
-    return maybePromise(callback, done => {
+    return maybePromise(callback, (done) => {
       const cursorId = this[kId];
       const cursorNs = this[kNamespace];
       const server = this[kServer];
@@ -353,22 +338,17 @@ export abstract class AbstractCursor extends EventEmitter {
       }
 
       this[kKilled] = true;
-      server.killCursors(
-        cursorNs,
-        [cursorId],
-        { ...pluckBSONSerializeOptions(this[kOptions]), session },
-        () => {
-          if (session && session.owner === this) {
-            return session.endSession(() => {
-              this.emit(AbstractCursor.CLOSE);
-              done();
-            });
-          }
-
-          this.emit(AbstractCursor.CLOSE);
-          done();
+      server.killCursors(cursorNs, [cursorId], { ...pluckBSONSerializeOptions(this[kOptions]), session }, () => {
+        if (session && session.owner === this) {
+          return session.endSession(() => {
+            this.emit(AbstractCursor.CLOSE);
+            done();
+          });
         }
-      );
+
+        this.emit(AbstractCursor.CLOSE);
+        done();
+      });
     });
   }
 
@@ -383,7 +363,7 @@ export abstract class AbstractCursor extends EventEmitter {
   toArray(): Promise<Document[]>;
   toArray(callback: Callback<Document[]>): void;
   toArray(callback?: Callback<Document[]>): Promise<Document[]> | void {
-    return maybePromise(callback, done => {
+    return maybePromise(callback, (done) => {
       const docs: Document[] = [];
       const transform = this[kTransform];
       const fetchDocs = () => {
@@ -424,7 +404,7 @@ export abstract class AbstractCursor extends EventEmitter {
       throw new MongoError(`flag ${flag} is not one of ${CURSOR_FLAGS}`);
     }
 
-    if (typeof value !== 'boolean') {
+    if (typeof value !== "boolean") {
       throw new MongoError(`flag ${flag} must be a boolean value`);
     }
 
@@ -441,7 +421,7 @@ export abstract class AbstractCursor extends EventEmitter {
     assertUninitialized(this);
     const oldTransform = this[kTransform];
     if (oldTransform) {
-      this[kTransform] = doc => {
+      this[kTransform] = (doc) => {
         return transform(oldTransform(doc));
       };
     } else {
@@ -460,10 +440,10 @@ export abstract class AbstractCursor extends EventEmitter {
     assertUninitialized(this);
     if (readPreference instanceof ReadPreference) {
       this[kOptions].readPreference = readPreference;
-    } else if (typeof readPreference === 'string') {
+    } else if (typeof readPreference === "string") {
       this[kOptions].readPreference = ReadPreference.fromString(readPreference);
     } else {
-      throw new TypeError('Invalid read preference: ' + readPreference);
+      throw new TypeError("Invalid read preference: " + readPreference);
     }
 
     return this;
@@ -491,8 +471,8 @@ export abstract class AbstractCursor extends EventEmitter {
    */
   maxTimeMS(value: number): this {
     assertUninitialized(this);
-    if (typeof value !== 'number') {
-      throw new TypeError('maxTimeMS must be a number');
+    if (typeof value !== "number") {
+      throw new TypeError("maxTimeMS must be a number");
     }
 
     this[kOptions].maxTimeMS = value;
@@ -507,11 +487,11 @@ export abstract class AbstractCursor extends EventEmitter {
   batchSize(value: number): this {
     assertUninitialized(this);
     if (this[kOptions].tailable) {
-      throw new MongoError('Tailable cursors do not support batchSize');
+      throw new MongoError("Tailable cursors do not support batchSize");
     }
 
-    if (typeof value !== 'number') {
-      throw new TypeError('batchSize requires an integer');
+    if (typeof value !== "number") {
+      throw new TypeError("batchSize requires an integer");
     }
 
     this[kOptions].batchSize = value;
@@ -551,10 +531,7 @@ export abstract class AbstractCursor extends EventEmitter {
   abstract clone(): AbstractCursor;
 
   /** @internal */
-  abstract _initialize(
-    session: ClientSession | undefined,
-    callback: Callback<ExecutionResult>
-  ): void;
+  abstract _initialize(session: ClientSession | undefined, callback: Callback<ExecutionResult>): void;
 
   /** @internal */
   _getMore(batchSize: number, callback: Callback<Document>): void {
@@ -563,12 +540,12 @@ export abstract class AbstractCursor extends EventEmitter {
     const server = this[kServer];
 
     if (cursorId == null) {
-      callback(new MongoError('Unable to iterate cursor with no id'));
+      callback(new MongoError("Unable to iterate cursor with no id"));
       return;
     }
 
     if (server == null) {
-      callback(new MongoError('Unable to iterate cursor without selected server'));
+      callback(new MongoError("Unable to iterate cursor without selected server"));
       return;
     }
 
@@ -578,7 +555,7 @@ export abstract class AbstractCursor extends EventEmitter {
       {
         ...this[kOptions],
         session: this[kSession],
-        batchSize
+        batchSize,
       },
       callback
     );
@@ -603,11 +580,7 @@ function nextDocument(cursor: AbstractCursor): Document | null | undefined {
   return null;
 }
 
-function next(
-  cursor: AbstractCursor,
-  blocking: boolean,
-  callback: Callback<Document | null>
-): void {
+function next(cursor: AbstractCursor, blocking: boolean, callback: Callback<Document | null>): void {
   const cursorId = cursor[kId];
   if (cursor.closed) {
     return callback(undefined, null);
@@ -632,9 +605,7 @@ function next(
 
         if (response.cursor) {
           cursor[kId] =
-            typeof response.cursor.id === 'number'
-              ? Long.fromNumber(response.cursor.id)
-              : response.cursor.id;
+            typeof response.cursor.id === "number" ? Long.fromNumber(response.cursor.id) : response.cursor.id;
 
           if (response.cursor.ns) {
             cursor[kNamespace] = MongoDBNamespace.fromString(response.cursor.ns);
@@ -643,10 +614,7 @@ function next(
           cursor[kDocuments] = response.cursor.firstBatch;
         } else {
           // NOTE: This is for support of older servers (<3.2) which do not use commands
-          cursor[kId] =
-            typeof response.cursorId === 'number'
-              ? Long.fromNumber(response.cursorId)
-              : response.cursorId;
+          cursor[kId] = typeof response.cursorId === "number" ? Long.fromNumber(response.cursorId) : response.cursorId;
           cursor[kDocuments] = response.documents;
         }
 
@@ -681,9 +649,7 @@ function next(
   cursor._getMore(batchSize, (err, response) => {
     if (response) {
       const cursorId =
-        typeof response.cursor.id === 'number'
-          ? Long.fromNumber(response.cursor.id)
-          : response.cursor.id;
+        typeof response.cursor.id === "number" ? Long.fromNumber(response.cursor.id) : response.cursor.id;
 
       cursor[kDocuments] = response.cursor.nextBatch;
       cursor[kId] = cursorId;
@@ -723,14 +689,14 @@ function cleanupCursor(cursor: AbstractCursor, callback: Callback): void {
 /** @internal */
 export function assertUninitialized(cursor: AbstractCursor): void {
   if (cursor[kInitialized]) {
-    throw new MongoError('Cursor is already initialized');
+    throw new MongoError("Cursor is already initialized");
   }
 }
 
 function makeCursorStream(cursor: AbstractCursor) {
   const readable = new Readable({
     objectMode: true,
-    highWaterMark: 1
+    highWaterMark: 1,
   });
 
   let initialized = false;
@@ -751,7 +717,7 @@ function makeCursorStream(cursor: AbstractCursor) {
 
   readable._destroy = function (error, cb) {
     if (needToClose) {
-      cursor.close(err => process.nextTick(cb, err || error));
+      cursor.close((err) => process.nextTick(cb, err || error));
     } else {
       cb(error);
     }

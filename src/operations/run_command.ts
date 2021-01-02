@@ -1,8 +1,8 @@
-import { CommandOperation, CommandOperationOptions, OperationParent } from './command';
-import { MongoDBNamespace, Callback } from '../utils';
-import type { Server } from '../sdam/server';
-import type { Document } from '../bson';
-import type { ClientSession } from '../sessions';
+import { CommandOperation, CommandOperationOptions, OperationParent } from './command.ts';
+import { MongoDBNamespace, Callback } from '../utils.ts';
+import type { Server } from '../sdam/server.ts';
+import type { Document } from '../bson.ts';
+import type { ClientSession } from '../sessions.ts';
 
 /** @public */
 export type RunCommandOptions = CommandOperationOptions;

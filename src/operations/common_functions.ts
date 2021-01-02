@@ -1,10 +1,10 @@
-import { MongoError } from '../error';
-import { Callback, getTopology } from '../utils';
-import type { Document } from '../bson';
-import type { Db } from '../db';
-import type { ClientSession } from '../sessions';
-import type { ReadPreference } from '../read_preference';
-import type { Collection } from '../collection';
+import { MongoError } from '../error.ts';
+import { Callback, getTopology } from '../utils.ts';
+import type { Document } from '../bson.ts';
+import type { Db } from '../db.ts';
+import type { ClientSession } from '../sessions.ts';
+import type { ReadPreference } from '../read_preference.ts';
+import type { Collection } from '../collection.ts';
 
 /** @public */
 export interface IndexInformationOptions {

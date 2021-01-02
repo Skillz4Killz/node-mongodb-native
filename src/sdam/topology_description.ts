@@ -1,8 +1,9 @@
-import { ServerDescription } from './server_description';
-import * as WIRE_CONSTANTS from '../cmap/wire_protocol/constants';
-import { TopologyType, ServerType } from './common';
-import type { ObjectId, Document } from '../bson';
-import type { SrvPollingEvent } from './srv_polling';
+import { ObjectId } from "../../deps.ts";
+import { ServerDescription } from './server_description.ts';
+import * as WIRE_CONSTANTS from '../cmap/wire_protocol/constants.ts';
+import { TopologyType, ServerType } from './common.ts';
+import type { Document } from '../bson.ts';
+import type { SrvPollingEvent } from './srv_polling.ts';
 
 // constants related to compatibility checks
 const MIN_SUPPORTED_SERVER_VERSION = WIRE_CONSTANTS.MIN_SUPPORTED_SERVER_VERSION;

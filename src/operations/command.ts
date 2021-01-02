@@ -1,15 +1,15 @@
-import { Aspect, AbstractOperation, OperationOptions } from './operation';
-import { ReadConcern } from '../read_concern';
-import { WriteConcern, WriteConcernOptions } from '../write_concern';
-import { maxWireVersion, MongoDBNamespace, Callback, decorateWithExplain } from '../utils';
-import type { ReadPreference } from '../read_preference';
-import { ClientSession, commandSupportsReadConcern } from '../sessions';
-import { MongoError } from '../error';
-import type { Logger } from '../logger';
-import type { Server } from '../sdam/server';
-import type { BSONSerializeOptions, Document } from '../bson';
-import type { ReadConcernLike } from './../read_concern';
-import { Explain, ExplainOptions } from '../explain';
+import { Aspect, AbstractOperation, OperationOptions } from './operation.ts';
+import { ReadConcern } from '../read_concern.ts';
+import { WriteConcern, WriteConcernOptions } from '../write_concern.ts';
+import { maxWireVersion, MongoDBNamespace, Callback, decorateWithExplain } from '../utils.ts';
+import type { ReadPreference } from '../read_preference.ts';
+import { ClientSession, commandSupportsReadConcern } from '../sessions.ts';
+import { MongoError } from '../error.ts';
+import type { Logger } from '../logger.ts';
+import type { Server } from '../sdam/server.ts';
+import type { BSONSerializeOptions, Document } from '../bson.ts';
+import type { ReadConcernLike } from './../read_concern.ts';
+import { Explain, ExplainOptions } from '../explain.ts';
 
 const SUPPORTS_WRITE_CONCERN_AND_COLLATION = 5;
 

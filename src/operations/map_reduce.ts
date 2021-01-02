@@ -1,5 +1,6 @@
-import { Code, Document } from '../bson';
-import { loadDb } from '../dynamic_loaders';
+import { ObjectId, Code } from "../../deps.ts";
+import { Document } from '../bson.ts';
+import { loadDb } from '../dynamic_loaders.ts';
 import {
   applyWriteConcern,
   decorateWithCollation,
@@ -7,16 +8,15 @@ import {
   isObject,
   Callback,
   maxWireVersion
-} from '../utils';
-import { ReadPreference, ReadPreferenceMode } from '../read_preference';
-import { CommandOperation, CommandOperationOptions } from './command';
-import type { Server } from '../sdam/server';
-import type { Collection } from '../collection';
-import type { Sort } from '../sort';
-import { MongoError } from '../error';
-import type { ObjectId } from '../bson';
-import { Aspect, defineAspects } from './operation';
-import type { ClientSession } from '../sessions';
+} from '../utils.ts';
+import { ReadPreference, ReadPreferenceMode } from '../read_preference.ts';
+import { CommandOperation, CommandOperationOptions } from './command.ts';
+import type { Server } from '../sdam/server.ts';
+import type { Collection } from '../collection.ts';
+import type { Sort } from '../sort.ts';
+import { MongoError } from '../error.ts';
+import { Aspect, defineAspects } from './operation.ts';
+import type { ClientSession } from '../sessions.ts';
 
 const exclusionList = [
   'explain',

@@ -1,41 +1,31 @@
-import { ServerType, STATE_CLOSED, STATE_CLOSING } from './common';
-import {
-  now,
-  makeStateMachine,
-  calculateDurationInMs,
-  makeInterruptibleAsyncInterval,
-  ns
-} from '../utils';
-import { EventEmitter } from 'events';
-import { connect } from '../cmap/connect';
-import { Connection } from '../cmap/connection';
-import { MongoNetworkError, AnyError } from '../error';
-import { Long, Document } from '../bson';
-import {
-  ServerHeartbeatStartedEvent,
-  ServerHeartbeatSucceededEvent,
-  ServerHeartbeatFailedEvent
-} from './events';
+import { EventEmitter, Long } from "../../deps.ts";
+import { ServerType, STATE_CLOSED, STATE_CLOSING } from "./common.ts";
+import { now, makeStateMachine, calculateDurationInMs, makeInterruptibleAsyncInterval, ns } from "../utils.ts";
+import { connect } from "../cmap/connect.ts";
+import { Connection } from "../cmap/connection.ts";
+import { MongoNetworkError, AnyError } from "../error.ts";
+import { Document } from "../bson.ts";
+import { ServerHeartbeatStartedEvent, ServerHeartbeatSucceededEvent, ServerHeartbeatFailedEvent } from "./events.ts";
 
-import { Server } from './server';
-import type { InterruptibleAsyncInterval, Callback } from '../utils';
-import type { TopologyVersion } from './server_description';
-import type { ConnectionOptions } from '../cmap/connection';
+import { Server } from "./server.ts";
+import type { InterruptibleAsyncInterval, Callback } from "../utils.ts";
+import type { TopologyVersion } from "./server_description.ts";
+import type { ConnectionOptions } from "../cmap/connection.ts";
 
-const kServer = Symbol('server');
-const kMonitorId = Symbol('monitorId');
-const kConnection = Symbol('connection');
-const kCancellationToken = Symbol('cancellationToken');
-const kRTTPinger = Symbol('rttPinger');
-const kRoundTripTime = Symbol('roundTripTime');
+const kServer = Symbol("server");
+const kMonitorId = Symbol("monitorId");
+const kConnection = Symbol("connection");
+const kCancellationToken = Symbol("cancellationToken");
+const kRTTPinger = Symbol("rttPinger");
+const kRoundTripTime = Symbol("roundTripTime");
 
-const STATE_IDLE = 'idle';
-const STATE_MONITORING = 'monitoring';
+const STATE_IDLE = "idle";
+const STATE_MONITORING = "monitoring";
 const stateTransition = makeStateMachine({
   [STATE_CLOSING]: [STATE_CLOSING, STATE_IDLE, STATE_CLOSED],
   [STATE_CLOSED]: [STATE_CLOSED, STATE_MONITORING],
   [STATE_IDLE]: [STATE_IDLE, STATE_MONITORING, STATE_CLOSING],
-  [STATE_MONITORING]: [STATE_MONITORING, STATE_IDLE, STATE_CLOSING]
+  [STATE_MONITORING]: [STATE_MONITORING, STATE_IDLE, STATE_CLOSING],
 });
 
 const INVALID_REQUEST_CHECK_STATES = new Set([STATE_CLOSING, STATE_CLOSED, STATE_MONITORING]);
@@ -78,26 +68,24 @@ export class Monitor extends EventEmitter {
     this[kCancellationToken].setMaxListeners(Infinity);
     this[kMonitorId] = undefined;
     this.s = {
-      state: STATE_CLOSED
+      state: STATE_CLOSED,
     };
 
     this.address = server.description.address;
     this.options = Object.freeze({
-      connectTimeoutMS:
-        typeof options?.connectTimeoutMS === 'number' ? options.connectTimeoutMS : 10000,
-      heartbeatFrequencyMS:
-        typeof options?.heartbeatFrequencyMS === 'number' ? options.heartbeatFrequencyMS : 10000,
+      connectTimeoutMS: typeof options?.connectTimeoutMS === "number" ? options.connectTimeoutMS : 10000,
+      heartbeatFrequencyMS: typeof options?.heartbeatFrequencyMS === "number" ? options.heartbeatFrequencyMS : 10000,
       minHeartbeatFrequencyMS:
-        typeof options?.minHeartbeatFrequencyMS === 'number' ? options.minHeartbeatFrequencyMS : 500
+        typeof options?.minHeartbeatFrequencyMS === "number" ? options.minHeartbeatFrequencyMS : 500,
     });
 
     // TODO: refactor this to pull it directly from the pool, requires new ConnectionPool integration
     const connectOptions = Object.assign(
       {
-        id: '<monitor>',
+        id: "<monitor>",
         host: server.description.host,
         port: server.description.port,
-        connectionType: Connection
+        connectionType: Connection,
       },
       server.s.options,
       this.options,
@@ -107,7 +95,7 @@ export class Monitor extends EventEmitter {
         raw: false,
         promoteLongs: true,
         promoteValues: true,
-        promoteBuffers: true
+        promoteBuffers: true,
       }
     );
 
@@ -131,7 +119,7 @@ export class Monitor extends EventEmitter {
     this[kMonitorId] = makeInterruptibleAsyncInterval(monitorServer(this), {
       interval: heartbeatFrequencyMS,
       minInterval: minHeartbeatFrequencyMS,
-      immediate: true
+      immediate: true,
     });
   }
 
@@ -160,7 +148,7 @@ export class Monitor extends EventEmitter {
     const minHeartbeatFrequencyMS = this.options.minHeartbeatFrequencyMS;
     this[kMonitorId] = makeInterruptibleAsyncInterval(monitorServer(this), {
       interval: heartbeatFrequencyMS,
-      minInterval: minHeartbeatFrequencyMS
+      minInterval: minHeartbeatFrequencyMS,
     });
   }
 
@@ -173,7 +161,7 @@ export class Monitor extends EventEmitter {
     resetMonitorState(this);
 
     // close monitor
-    this.emit('close');
+    this.emit("close");
     stateTransition(this, STATE_CLOSED);
   }
 }
@@ -185,7 +173,7 @@ function resetMonitorState(monitor: Monitor) {
   monitor[kRTTPinger]?.close();
   monitor[kRTTPinger] = undefined;
 
-  monitor[kCancellationToken].emit('cancel');
+  monitor[kCancellationToken].emit("cancel");
 
   monitor[kConnection]?.destroy({ force: true });
   monitor[kConnection] = undefined;
@@ -204,8 +192,8 @@ function checkServer(monitor: Monitor, callback: Callback<Document>) {
       new ServerHeartbeatFailedEvent(monitor.address, calculateDurationInMs(start), err)
     );
 
-    monitor.emit('resetServer', err);
-    monitor.emit('resetConnectionPool');
+    monitor.emit("resetServer", err);
+    monitor.emit("resetConnectionPool");
     callback(err);
   }
 
@@ -224,29 +212,25 @@ function checkServer(monitor: Monitor, callback: Callback<Document>) {
     const options = isAwaitable
       ? {
           socketTimeout: connectTimeoutMS ? connectTimeoutMS + maxAwaitTimeMS : 0,
-          exhaustAllowed: true
+          exhaustAllowed: true,
         }
       : { socketTimeout: connectTimeoutMS };
 
     if (isAwaitable && monitor[kRTTPinger] == null) {
       monitor[kRTTPinger] = new RTTPinger(
         monitor[kCancellationToken],
-        Object.assign(
-          { heartbeatFrequencyMS: monitor.options.heartbeatFrequencyMS },
-          monitor.connectOptions
-        )
+        Object.assign({ heartbeatFrequencyMS: monitor.options.heartbeatFrequencyMS }, monitor.connectOptions)
       );
     }
 
-    connection.command(ns('admin.$cmd'), cmd, options, (err, isMaster) => {
+    connection.command(ns("admin.$cmd"), cmd, options, (err, isMaster) => {
       if (err) {
         failureHandler(err);
         return;
       }
 
       const rttPinger = monitor[kRTTPinger];
-      const duration =
-        isAwaitable && rttPinger ? rttPinger.roundTripTime : calculateDurationInMs(start);
+      const duration = isAwaitable && rttPinger ? rttPinger.roundTripTime : calculateDurationInMs(start);
 
       monitor.emit(
         Server.SERVER_HEARTBEAT_SUCCEEDED,
@@ -256,10 +240,7 @@ function checkServer(monitor: Monitor, callback: Callback<Document>) {
       // if we are using the streaming protocol then we immediately issue another `started`
       // event, otherwise the "check" is complete and return to the main monitor loop
       if (isAwaitable && isMaster.topologyVersion) {
-        monitor.emit(
-          Server.SERVER_HEARTBEAT_STARTED,
-          new ServerHeartbeatStartedEvent(monitor.address)
-        );
+        monitor.emit(Server.SERVER_HEARTBEAT_STARTED, new ServerHeartbeatStartedEvent(monitor.address));
         start = now();
       } else {
         monitor[kRTTPinger]?.close();
@@ -279,7 +260,7 @@ function checkServer(monitor: Monitor, callback: Callback<Document>) {
 
       // we already reset the connection pool on network errors in all cases
       if (!(err instanceof MongoNetworkError)) {
-        monitor.emit('resetConnectionPool');
+        monitor.emit("resetConnectionPool");
       }
 
       failureHandler(err);
@@ -295,11 +276,7 @@ function checkServer(monitor: Monitor, callback: Callback<Document>) {
       monitor[kConnection] = conn;
       monitor.emit(
         Server.SERVER_HEARTBEAT_SUCCEEDED,
-        new ServerHeartbeatSucceededEvent(
-          monitor.address,
-          calculateDurationInMs(start),
-          conn.ismaster
-        )
+        new ServerHeartbeatSucceededEvent(monitor.address, calculateDurationInMs(start), conn.ismaster)
       );
 
       callback(undefined, conn.ismaster);
@@ -319,12 +296,12 @@ function monitorServer(monitor: Monitor) {
     }
 
     // TODO: the next line is a legacy event, remove in v4
-    process.nextTick(() => monitor.emit('monitoring', monitor[kServer]));
+    process.nextTick(() => monitor.emit("monitoring", monitor[kServer]));
     checkServer(monitor, (err, isMaster) => {
       if (err) {
         // otherwise an error occurred on initial discovery, also bail
         if (monitor[kServer].description.type === ServerType.Unknown) {
-          monitor.emit('resetServer', err);
+          monitor.emit("resetServer", err);
           return done();
         }
       }
@@ -349,7 +326,7 @@ function makeTopologyVersion(tv: TopologyVersion) {
 
     // NOTE: The casting here is a bug, `counter` should always be a `Long`
     //       but it was not at the time of typing. Further investigation needed
-    counter: Long.fromNumber((tv.counter as unknown) as number)
+    counter: Long.fromNumber((tv.counter as unknown) as number),
   };
 }
 
@@ -413,10 +390,7 @@ function measureRoundTripTime(rttPinger: RTTPinger, options: RTTPingerOptions) {
     }
 
     rttPinger[kRoundTripTime] = calculateDurationInMs(start);
-    rttPinger[kMonitorId] = setTimeout(
-      () => measureRoundTripTime(rttPinger, options),
-      heartbeatFrequencyMS
-    );
+    rttPinger[kMonitorId] = setTimeout(() => measureRoundTripTime(rttPinger, options), heartbeatFrequencyMS);
   }
 
   const connection = rttPinger[kConnection];
@@ -434,7 +408,7 @@ function measureRoundTripTime(rttPinger: RTTPinger, options: RTTPingerOptions) {
     return;
   }
 
-  connection.command(ns('admin.$cmd'), { ismaster: 1 }, undefined, err => {
+  connection.command(ns("admin.$cmd"), { ismaster: 1 }, undefined, (err) => {
     if (err) {
       rttPinger[kConnection] = undefined;
       rttPinger[kRoundTripTime] = 0;

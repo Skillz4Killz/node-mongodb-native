@@ -1,10 +1,10 @@
-import { CommandOperation, CommandOperationOptions } from './command';
-import { Aspect, defineAspects } from './operation';
-import { MongoDBNamespace, Callback } from '../utils';
-import type { Document } from '../bson';
-import type { Server } from '../sdam/server';
-import type { Db } from '../db';
-import type { ClientSession } from '../sessions';
+import { CommandOperation, CommandOperationOptions } from './command.ts';
+import { Aspect, defineAspects } from './operation.ts';
+import { MongoDBNamespace, Callback } from '../utils.ts';
+import type { Document } from '../bson.ts';
+import type { Server } from '../sdam/server.ts';
+import type { Db } from '../db.ts';
+import type { ClientSession } from '../sessions.ts';
 
 /** @public */
 export type ListDatabasesResult = string[] | Document[];

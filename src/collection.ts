@@ -1,5 +1,5 @@
-import { emitDeprecatedOptionWarning, resolveOptions } from './utils';
-import { ReadPreference, ReadPreferenceLike } from './read_preference';
+import { emitDeprecatedOptionWarning, resolveOptions } from './utils.ts';
+import { ReadPreference, ReadPreferenceLike } from './read_preference.ts';
 import { deprecate } from 'util';
 import {
   normalizeHintField,
@@ -8,18 +8,18 @@ import {
   MongoDBNamespace,
   Callback,
   getTopology
-} from './utils';
-import { ObjectId, Document, BSONSerializeOptions, resolveBSONOptions } from './bson';
-import { MongoError } from './error';
-import { UnorderedBulkOperation } from './bulk/unordered';
-import { OrderedBulkOperation } from './bulk/ordered';
-import { ChangeStream, ChangeStreamOptions } from './change_stream';
-import { WriteConcern, WriteConcernOptions } from './write_concern';
-import { ReadConcern, ReadConcernLike } from './read_concern';
-import { AggregationCursor } from './cursor/aggregation_cursor';
-import type { AggregateOptions } from './operations/aggregate';
-import { BulkWriteOperation } from './operations/bulk_write';
-import { CountDocumentsOperation, CountDocumentsOptions } from './operations/count_documents';
+} from './utils.ts';
+import { ObjectId, Document, BSONSerializeOptions, resolveBSONOptions } from './bson.ts';
+import { MongoError } from './error.ts';
+import { UnorderedBulkOperation } from './bulk/unordered.ts';
+import { OrderedBulkOperation } from './bulk/ordered.ts';
+import { ChangeStream, ChangeStreamOptions } from './change_stream.ts';
+import { WriteConcern, WriteConcernOptions } from './write_concern.ts';
+import { ReadConcern, ReadConcernLike } from './read_concern.ts';
+import { AggregationCursor } from './cursor/aggregation_cursor.ts';
+import type { AggregateOptions } from './operations/aggregate.ts';
+import { BulkWriteOperation } from './operations/bulk_write.ts';
+import { CountDocumentsOperation, CountDocumentsOptions } from './operations/count_documents.ts';
 import {
   CreateIndexesOperation,
   CreateIndexOperation,
@@ -35,29 +35,29 @@ import {
   IndexSpecification,
   IndexDescription,
   ListIndexesCursor
-} from './operations/indexes';
-import { DistinctOperation, DistinctOptions } from './operations/distinct';
-import { DropCollectionOperation, DropCollectionOptions } from './operations/drop';
+} from './operations/indexes.ts';
+import { DistinctOperation, DistinctOptions } from './operations/distinct.ts';
+import { DropCollectionOperation, DropCollectionOptions } from './operations/drop.ts';
 import {
   EstimatedDocumentCountOperation,
   EstimatedDocumentCountOptions
-} from './operations/estimated_document_count';
-import type { FindOptions } from './operations/find';
-import { FindOneOperation } from './operations/find_one';
+} from './operations/estimated_document_count.ts';
+import type { FindOptions } from './operations/find.ts';
+import { FindOneOperation } from './operations/find_one.ts';
 import {
   FindAndModifyOperation,
   FindOneAndDeleteOperation,
   FindOneAndReplaceOperation,
   FindOneAndUpdateOperation,
   FindAndModifyOptions
-} from './operations/find_and_modify';
+} from './operations/find_and_modify.ts';
 import {
   InsertOneOperation,
   InsertOneOptions,
   InsertOneResult,
   InsertManyOperation,
   InsertManyResult
-} from './operations/insert';
+} from './operations/insert.ts';
 import {
   UpdateOneOperation,
   UpdateManyOperation,
@@ -65,33 +65,33 @@ import {
   UpdateResult,
   ReplaceOneOperation,
   ReplaceOptions
-} from './operations/update';
+} from './operations/update.ts';
 import {
   DeleteOneOperation,
   DeleteManyOperation,
   DeleteOptions,
   DeleteResult
-} from './operations/delete';
-import { IsCappedOperation } from './operations/is_capped';
+} from './operations/delete.ts';
+import { IsCappedOperation } from './operations/is_capped.ts';
 import {
   MapReduceOperation,
   MapFunction,
   ReduceFunction,
   MapReduceOptions
-} from './operations/map_reduce';
-import { OptionsOperation } from './operations/options_operation';
-import { RenameOperation, RenameOptions } from './operations/rename';
-import { CollStatsOperation, CollStatsOptions } from './operations/stats';
-import { executeOperation } from './operations/execute_operation';
-import type { Db } from './db';
-import type { OperationOptions, Hint } from './operations/operation';
-import type { IndexInformationOptions } from './operations/common_functions';
-import type { CountOptions } from './operations/count';
-import type { BulkWriteResult, BulkWriteOptions, AnyBulkWriteOperation } from './bulk/common';
-import type { PkFactory } from './mongo_client';
-import type { Logger, LoggerOptions } from './logger';
-import type { Sort } from './sort';
-import { FindCursor } from './cursor/find_cursor';
+} from './operations/map_reduce.ts';
+import { OptionsOperation } from './operations/options_operation.ts';
+import { RenameOperation, RenameOptions } from './operations/rename.ts';
+import { CollStatsOperation, CollStatsOptions } from './operations/stats.ts';
+import { executeOperation } from './operations/execute_operation.ts';
+import type { Db } from './db.ts';
+import type { OperationOptions, Hint } from './operations/operation.ts';
+import type { IndexInformationOptions } from './operations/common_functions.ts';
+import type { CountOptions } from './operations/count.ts';
+import type { BulkWriteResult, BulkWriteOptions, AnyBulkWriteOperation } from './bulk/common.ts';
+import type { PkFactory } from './mongo_client.ts';
+import type { Logger, LoggerOptions } from './logger.ts';
+import type { Sort } from './sort.ts';
+import { FindCursor } from './cursor/find_cursor.ts';
 
 /** @public */
 export interface Collection {

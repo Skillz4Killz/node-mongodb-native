@@ -1,21 +1,19 @@
-import { EventEmitter } from 'events';
-import type { Callback } from './utils';
-import { Connection } from './cmap/connection';
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import type { MongoClient } from './mongo_client';
+import type { Callback } from "./utils.ts";
+import { Connection } from "./cmap/connection.ts";
+import type { MongoClient } from "./mongo_client.ts";
+import { EventEmitter } from "../deps.ts";
 
 /** @public */
 export class Instrumentation extends EventEmitter {
   $MongoClient?: typeof MongoClient;
-  $prototypeConnect?: typeof MongoClient.prototype['connect'];
+  $prototypeConnect?: typeof MongoClient.prototype["connect"];
 
   /** @event */
-  static readonly STARTED = 'started' as const;
+  static readonly STARTED = "started" as const;
   /** @event */
-  static readonly SUCCEEDED = 'succeeded' as const;
+  static readonly SUCCEEDED = "succeeded" as const;
   /** @event */
-  static readonly FAILED = 'failed' as const;
+  static readonly FAILED = "failed" as const;
 
   constructor() {
     super();
@@ -32,20 +30,14 @@ export class Instrumentation extends EventEmitter {
       // override monitorCommands to be switched on
       this.s.options = { ...(this.s.options ?? {}), monitorCommands: true };
 
-      this.on(Connection.COMMAND_STARTED, event =>
-        instrumentation.emit(Instrumentation.STARTED, event)
-      );
-      this.on(Connection.COMMAND_SUCCEEDED, event =>
-        instrumentation.emit(Instrumentation.SUCCEEDED, event)
-      );
-      this.on(Connection.COMMAND_FAILED, event =>
-        instrumentation.emit(Instrumentation.FAILED, event)
-      );
+      this.on(Connection.COMMAND_STARTED, (event) => instrumentation.emit(Instrumentation.STARTED, event));
+      this.on(Connection.COMMAND_SUCCEEDED, (event) => instrumentation.emit(Instrumentation.SUCCEEDED, event));
+      this.on(Connection.COMMAND_FAILED, (event) => instrumentation.emit(Instrumentation.FAILED, event));
 
       return $prototypeConnect.call(this, callback);
-    } as MongoClient['connect'];
+    } as MongoClient["connect"];
 
-    if (typeof callback === 'function') callback(undefined, this);
+    if (typeof callback === "function") callback(undefined, this);
   }
 
   uninstrument(): void {
