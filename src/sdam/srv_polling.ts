@@ -45,7 +45,7 @@ export class SrvPoller extends EventEmitter {
   logger: Logger;
   haMode: boolean;
   generation: number;
-  _timeout?: NodeJS.Timeout;
+  _timeout?: number;
 
   constructor(options: SrvPollerOptions) {
     super();

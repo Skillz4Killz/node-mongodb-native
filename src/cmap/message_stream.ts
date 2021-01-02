@@ -1,4 +1,4 @@
-import { Buffer } from "../../deps.ts";
+import { Buffer, Duplex, DuplexOptions } from "../../deps.ts";
 import { Response, Msg, BinMsg, Query, WriteProtocolMessageType, MessageHeader } from './commands.ts';
 import { MongoError, MongoParseError } from '../error.ts';
 import { OP_COMPRESSED, OP_MSG } from './wire_protocol/constants.ts';

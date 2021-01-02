@@ -1,4 +1,4 @@
-import { Buffer, EventEmitter, randomBytes } from "../deps.ts";
+import { Buffer, EventEmitter, process, randomBytes } from "../deps.ts";
 import { PromiseProvider } from "./promise_provider.ts";
 import { MongoError, AnyError } from "./error.ts";
 import { WriteConcern, WriteConcernOptions, W } from "./write_concern.ts";
@@ -849,7 +849,7 @@ export interface ClientMetadata {
   };
   os: {
     type: string;
-    name: NodeJS.Platform;
+    name: Platform;
     architecture: string;
     version: string;
   };
@@ -870,16 +870,15 @@ export interface ClientMetadataOptions {
   appname?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const NODE_DRIVER_VERSION = require("../package.json").version;
+const DENO_DRIVER_VERSION = "1.0.0";
 
 export function makeClientMetadata(options: ClientMetadataOptions): ClientMetadata {
   options = options ?? {};
 
   const metadata: ClientMetadata = {
     driver: {
-      name: "nodejs",
-      version: NODE_DRIVER_VERSION,
+      name: "deno",
+      version: DENO_DRIVER_VERSION,
     },
     os: {
       type: os.type(),
@@ -887,7 +886,7 @@ export function makeClientMetadata(options: ClientMetadataOptions): ClientMetada
       architecture: Deno.build.arch,
       version: os.release(),
     },
-    platform: `'Node.js ${Deno.version}, ${os.endianness} (unified)`,
+    platform: `'Deno ${Deno.version}, ${os.endianness} (unified)`,
   };
 
   // support optionally provided wrapping driver info
@@ -982,7 +981,7 @@ export function makeInterruptibleAsyncInterval(
   fn: (callback: Callback) => void,
   options?: Partial<InterruptibleAsyncIntervalOptions>
 ): InterruptibleAsyncInterval {
-  let timerId: NodeJS.Timeout | undefined;
+  let timerId: number | undefined;
   let lastCallTime: number;
   let lastWakeTime: number;
   let stopped = false;

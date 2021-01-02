@@ -18,6 +18,7 @@ import type { ClientSession, ClientSessionOptions } from "./sessions.ts";
 import type { TagSet } from "./sdam/server_description.ts";
 import type { MongoCredentials } from "./cmap/auth/mongo_credentials.ts";
 import { parseOptions } from "./connection_string.ts";
+import { ConnectionOptions } from "./cmap/connection.ts";
 
 /** @public */
 export const LogLevel = {

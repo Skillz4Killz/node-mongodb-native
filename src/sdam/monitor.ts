@@ -1,4 +1,4 @@
-import { EventEmitter, Long } from "../../deps.ts";
+import { EventEmitter, Long, process } from "../../deps.ts";
 import { ServerType, STATE_CLOSED, STATE_CLOSING } from "./common.ts";
 import { now, makeStateMachine, calculateDurationInMs, makeInterruptibleAsyncInterval, ns } from "../utils.ts";
 import { connect } from "../cmap/connect.ts";
@@ -344,7 +344,7 @@ export class RTTPinger {
   /** @internal */
   [kRoundTripTime]: number;
   /** @internal */
-  [kMonitorId]: NodeJS.Timeout;
+  [kMonitorId]: number;
   closed: boolean;
 
   constructor(cancellationToken: EventEmitter, options: RTTPingerOptions) {

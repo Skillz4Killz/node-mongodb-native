@@ -1,4 +1,4 @@
-import { EventEmitter, Long } from "../../deps.ts";
+import { EventEmitter, Long, process, Readable, Transform } from "../../deps.ts";
 import { Callback, maybePromise, MongoDBNamespace } from "../utils.ts";
 import { Document, BSONSerializeOptions, pluckBSONSerializeOptions } from "../bson.ts";
 import { ClientSession } from "../sessions.ts";

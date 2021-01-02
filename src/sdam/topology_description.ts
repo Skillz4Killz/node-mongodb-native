@@ -1,4 +1,4 @@
-import { ObjectId } from "../../deps.ts";
+import { Buffer, ObjectId } from "../../deps.ts";
 import { ServerDescription } from './server_description.ts';
 import * as WIRE_CONSTANTS from '../cmap/wire_protocol/constants.ts';
 import { TopologyType, ServerType } from './common.ts';

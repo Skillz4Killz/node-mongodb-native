@@ -1,6 +1,6 @@
+import { ObjectId } from "../deps.ts";
 import { emitDeprecatedOptionWarning, resolveOptions } from './utils.ts';
 import { ReadPreference, ReadPreferenceLike } from './read_preference.ts';
-import { deprecate } from 'util';
 import {
   normalizeHintField,
   checkCollectionName,
@@ -9,7 +9,7 @@ import {
   Callback,
   getTopology
 } from './utils.ts';
-import { ObjectId, Document, BSONSerializeOptions, resolveBSONOptions } from './bson.ts';
+import { Document, BSONSerializeOptions, resolveBSONOptions } from './bson.ts';
 import { MongoError } from './error.ts';
 import { UnorderedBulkOperation } from './bulk/unordered.ts';
 import { OrderedBulkOperation } from './bulk/ordered.ts';

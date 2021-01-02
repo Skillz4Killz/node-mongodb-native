@@ -1,23 +1,23 @@
 import { Binary, Long, Timestamp } from "../../deps.ts";
-import type { Topology } from './topology.ts';
-import type { ClientSession } from '../sessions.ts';
+import type { Topology } from "./topology.ts";
+import type { ClientSession } from "../sessions.ts";
 
 // shared state names
-export const STATE_CLOSING = 'closing';
-export const STATE_CLOSED = 'closed';
-export const STATE_CONNECTING = 'connecting';
-export const STATE_CONNECTED = 'connected';
+export const STATE_CLOSING = "closing";
+export const STATE_CLOSED = "closed";
+export const STATE_CONNECTING = "connecting";
+export const STATE_CONNECTED = "connected";
 
 /**
  * An enumeration of topology types we know about
  * @public
  */
 export enum TopologyType {
-  Single = 'Single',
-  ReplicaSetNoPrimary = 'ReplicaSetNoPrimary',
-  ReplicaSetWithPrimary = 'ReplicaSetWithPrimary',
-  Sharded = 'Sharded',
-  Unknown = 'Unknown'
+  Single = "Single",
+  ReplicaSetNoPrimary = "ReplicaSetNoPrimary",
+  ReplicaSetWithPrimary = "ReplicaSetWithPrimary",
+  Sharded = "Sharded",
+  Unknown = "Unknown",
 }
 
 /**
@@ -25,15 +25,15 @@ export enum TopologyType {
  * @public
  */
 export enum ServerType {
-  Standalone = 'Standalone',
-  Mongos = 'Mongos',
-  PossiblePrimary = 'PossiblePrimary',
-  RSPrimary = 'RSPrimary',
-  RSSecondary = 'RSSecondary',
-  RSArbiter = 'RSArbiter',
-  RSOther = 'RSOther',
-  RSGhost = 'RSGhost',
-  Unknown = 'Unknown'
+  Standalone = "Standalone",
+  Mongos = "Mongos",
+  PossiblePrimary = "PossiblePrimary",
+  RSPrimary = "RSPrimary",
+  RSSecondary = "RSSecondary",
+  RSArbiter = "RSArbiter",
+  RSOther = "RSOther",
+  RSGhost = "RSGhost",
+  Unknown = "Unknown",
 }
 
 export const TOPOLOGY_DEFAULTS = {
@@ -43,11 +43,11 @@ export const TOPOLOGY_DEFAULTS = {
   minHeartbeatFrequencyMS: 500,
 
   // TODO: remove in v4
-  useRecoveryToken: true
+  useRecoveryToken: true,
 };
 
 /** @internal */
-export type TimerQueue = Set<NodeJS.Timeout>;
+export type TimerQueue = Set<number>;
 
 /** @internal */
 export function drainTimerQueue(queue: TimerQueue): void {
@@ -56,7 +56,7 @@ export function drainTimerQueue(queue: TimerQueue): void {
 }
 
 /** @internal */
-export function clearAndRemoveTimerFrom(timer: NodeJS.Timeout, timers: TimerQueue): boolean {
+export function clearAndRemoveTimerFrom(timer: number, timers: TimerQueue): boolean {
   clearTimeout(timer);
   return timers.delete(timer);
 }
@@ -71,10 +71,7 @@ export interface ClusterTime {
 }
 
 /** Shared function to determine clusterTime for a given topology */
-export function resolveClusterTime(
-  topology: Topology | ClientSession,
-  $clusterTime: ClusterTime
-): void {
+export function resolveClusterTime(topology: Topology | ClientSession, $clusterTime: ClusterTime): void {
   if (topology.clusterTime == null) {
     topology.clusterTime = $clusterTime;
   } else {

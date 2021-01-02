@@ -1,3 +1,4 @@
+import { Buffer, process, Readable } from "../../deps.ts";
 import type { AnyError } from '../error.ts';
 import type { Document } from '../bson.ts';
 import type { FindOptions } from '../operations/find.ts';

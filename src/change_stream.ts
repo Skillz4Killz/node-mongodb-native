@@ -1,6 +1,5 @@
-import { Timestamp, EventEmitter } from "../deps.ts";
+import { Readable, Timestamp, EventEmitter } from "../deps.ts";
 
-import Denque = require("denque");
 import { MongoError, AnyError, isResumableError } from "./error.ts";
 import { AggregateOperation, AggregateOptions } from "./operations/aggregate.ts";
 import {
@@ -20,7 +19,6 @@ import type { OperationParent, CollationOptions } from "./operations/command.ts"
 import { MongoClient } from "./mongo_client.ts";
 import { Db } from "./db.ts";
 import { Collection } from "./collection.ts";
-// import type { Readable } from "stream";
 import { AbstractCursor, AbstractCursorOptions, CursorStreamOptions } from "./cursor/abstract_cursor.ts";
 import type { ClientSession } from "./sessions.ts";
 import { executeOperation, ExecutionResult } from "./operations/execute_operation.ts";

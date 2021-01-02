@@ -1,4 +1,4 @@
-import { EventEmitter } from "../../deps.ts";
+import { EventEmitter, process } from "../../deps.ts";
 import { Logger } from "../logger.ts";
 import { Connection, ConnectionOptions, CommandOptions } from "./connection.ts";
 import { connect } from "./connect.ts";
@@ -116,7 +116,7 @@ export interface ConnectionPoolOptions extends ConnectionOptions {
 /** @internal */
 export interface WaitQueueMember {
   callback: Callback<Connection>;
-  timer?: NodeJS.Timeout;
+  timer?: number;
   [kCancelled]?: boolean;
 }
 
@@ -142,7 +142,7 @@ export class ConnectionPool extends EventEmitter {
    */
   [kPermits]: number;
   /** @internal */
-  [kMinPoolSizeTimer]?: NodeJS.Timeout;
+  [kMinPoolSizeTimer]?: number;
   /**
    * An integer representing the SDAM generation of the pool
    * @internal

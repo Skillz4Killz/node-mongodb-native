@@ -1,4 +1,4 @@
-import { EventEmitter } from "../../deps.ts";
+import { EventEmitter, process } from "../../deps.ts";
 import { ReadPreference, ReadPreferenceLike } from "../read_preference.ts";
 import { ServerDescription } from "./server_description.ts";
 import { TopologyDescription } from "./topology_description.ts";
@@ -85,7 +85,7 @@ export interface ServerSelectionRequest {
   serverSelector: ServerSelector;
   transaction?: Transaction;
   callback: ServerSelectionCallback;
-  timer?: NodeJS.Timeout;
+  timer?: number;
   [kCancelled]?: boolean;
 }
 
@@ -262,7 +262,7 @@ export class Topology extends EventEmitter {
       clusterTime: undefined,
 
       // timer management
-      connectionTimers: new Set<NodeJS.Timeout>(),
+      connectionTimers: new Set<number>(),
     };
 
     if (options.srvHost) {

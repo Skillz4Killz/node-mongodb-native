@@ -1,4 +1,4 @@
-import { EventEmitter, Long } from "../../deps.ts";
+import { EventEmitter, Long, process } from "../../deps.ts";
 import { Logger } from "../logger.ts";
 import { ConnectionPool, ConnectionPoolOptions } from "../cmap/connection_pool.ts";
 import { CMAP_EVENT_NAMES } from "../cmap/events.ts";

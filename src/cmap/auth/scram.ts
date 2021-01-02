@@ -328,9 +328,9 @@ function compareDigest(lhs: Buffer, rhs: Uint8Array) {
     return false;
   }
 
-  if (typeof timingSafeEqual === 'function') {
-    return timingSafeEqual(lhs, rhs);
-  }
+  // if (typeof timingSafeEqual === 'function') {
+  //   return timingSafeEqual(lhs, rhs);
+  // }
 
   let result = 0;
   for (let i = 0; i < lhs.length; i++) {

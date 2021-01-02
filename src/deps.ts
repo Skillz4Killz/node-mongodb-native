@@ -1,3 +1,4 @@
+import { Buffer } from "../deps.ts";
 import { MongoError } from './error.ts';
 import type { MongoClient } from './mongo_client.ts';
 import type { Document } from './bson.ts';
@@ -18,15 +19,15 @@ function makeErrorModule(error: any) {
   });
 }
 
-export let Kerberos: typeof import('kerberos') = makeErrorModule(
-  new MongoError(
-    'Optional module `kerberos` not found. Please install it to enable kerberos authentication'
-  )
-);
+// export let Kerberos: typeof import('kerberos') = makeErrorModule(
+//   new MongoError(
+//     'Optional module `kerberos` not found. Please install it to enable kerberos authentication'
+//   )
+// );
 
-try {
-  Kerberos = require('kerberos');
-} catch {} // eslint-disable-line
+// try {
+//   Kerberos = require('kerberos');
+// } catch {}
 
 export interface KerberosClient {
   step: (challenge: string, callback?: Callback<string>) => Promise<string> | void;
@@ -38,34 +39,34 @@ export interface KerberosClient {
   unwrap: (challenge: string, callback?: Callback<string>) => Promise<string> | void;
 }
 
-export let Snappy: typeof import('snappy') = makeErrorModule(
-  new MongoError(
-    'Optional module `snappy` not found. Please install it to enable snappy compression'
-  )
-);
+// export let Snappy: typeof import('snappy') = makeErrorModule(
+//   new MongoError(
+//     'Optional module `snappy` not found. Please install it to enable snappy compression'
+//   )
+// );
 
-try {
-  Snappy = require('snappy');
-} catch {} // eslint-disable-line
+// try {
+//   Snappy = require('snappy');
+// } catch {}
 
-export let saslprep: typeof import('saslprep') = makeErrorModule(
-  new MongoError(
-    'Optional module `saslprep` not found.' +
-      ' Please install it to enable Stringprep Profile for User Names and Passwords'
-  )
-);
+// export let saslprep: typeof import('saslprep') = makeErrorModule(
+//   new MongoError(
+//     'Optional module `saslprep` not found.' +
+//       ' Please install it to enable Stringprep Profile for User Names and Passwords'
+//   )
+// );
 
-try {
-  saslprep = require('saslprep');
-} catch {} // eslint-disable-line
+// try {
+//   saslprep = require('saslprep');
+// } catch {}
 
-export let aws4: typeof import('aws4') = makeErrorModule(
-  new MongoError('Optional module `aws4` not found. Please install it to enable AWS authentication')
-);
+// export let aws4: typeof import('aws4') = makeErrorModule(
+//   new MongoError('Optional module `aws4` not found. Please install it to enable AWS authentication')
+// );
 
-try {
-  aws4 = require('aws4');
-} catch {} // eslint-disable-line
+// try {
+//   aws4 = require('aws4');
+// } catch {}
 
 /** @public */
 export const enum AutoEncryptionLoggerLevels {

@@ -1,3 +1,4 @@
+import { process } from "../deps.ts";
 import { MongoError } from './error.ts';
 
 // Filters for classes
