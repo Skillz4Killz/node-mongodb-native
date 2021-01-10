@@ -193,11 +193,11 @@ export const LEGAL_TLS_SOCKET_OPTIONS = [
 /** @public */
 export const LEGAL_TCP_SOCKET_OPTIONS = ["family", "hints", "localAddress", "localPort", "lookup"] as const;
 
-function parseConnectOptions(options: ConnectionOptions): SocketConnectOpts {
+function parseConnectOptions(options: ConnectionOptions): Deno.ConnectTlsOptions {
   const hostAddress = options.hostAddress;
   if (!hostAddress) throw new Error("HostAddress required");
 
-  const result: Partial<net.TcpNetConnectOpts & net.IpcNetConnectOpts> = {};
+  const result: Partial<Deno.ConnectTlsOptions> = {};
   for (const name of LEGAL_TCP_SOCKET_OPTIONS) {
     if (options[name] != null) {
       (result as Document)[name] = options[name];
@@ -205,12 +205,12 @@ function parseConnectOptions(options: ConnectionOptions): SocketConnectOpts {
   }
 
   if (typeof hostAddress.socketPath === "string") {
-    result.path = hostAddress.socketPath;
-    return result as net.IpcNetConnectOpts;
+    result.hostname = hostAddress.socketPath;
+    return result;
   } else if (typeof hostAddress.host === "string") {
-    result.host = hostAddress.host;
+    result.hostname = hostAddress.host;
     result.port = hostAddress.port;
-    return result as net.TcpNetConnectOpts;
+    return result as Deno.ConnectTlsOptions;
   } else {
     // This should never happen since we set up HostAddresses
     // But if we don't throw here the socket could hang until timeout
@@ -218,28 +218,30 @@ function parseConnectOptions(options: ConnectionOptions): SocketConnectOpts {
   }
 }
 
-function parseSslOptions(options: ConnectionOptions): TLSConnectionOpts {
-  const result: TLSConnectionOpts = parseConnectOptions(options);
+function parseSslOptions(options: ConnectionOptions): Deno.ConnectTlsOptions {
+  const result: Deno.ConnectTlsOptions = parseConnectOptions(options);
   // Merge in valid SSL options
   for (const name of LEGAL_TLS_SOCKET_OPTIONS) {
-    if (options[name] != null) {
-      (result as Document)[name] = options[name];
+    // @ts-ignore
+    const optionName = options[name];
+    if (optionName != null) {
+      (result as Document)[name] = optionName;
     }
   }
 
-  // Override checkServerIdentity behavior
-  if (!options.checkServerIdentity) {
-    // Skip the identity check by retuning undefined as per node documents
-    // https://nodejs.org/api/tls.html#tls_tls_connect_options_callback
-    result.checkServerIdentity = () => undefined;
-  } else if (typeof options.checkServerIdentity === "function") {
-    result.checkServerIdentity = options.checkServerIdentity;
-  }
+  // // Override checkServerIdentity behavior
+  // if (!options.checkServerIdentity) {
+  //   // Skip the identity check by retuning undefined as per node documents
+  //   // https://nodejs.org/api/tls.html#tls_tls_connect_options_callback
+  //   result.checkServerIdentity = () => undefined;
+  // } else if (typeof options.checkServerIdentity === "function") {
+  //   result.checkServerIdentity = options.checkServerIdentity;
+  // }
 
-  // Set default sni servername to be the same as host
-  if (result.servername == null) {
-    result.servername = result.host;
-  }
+  // // Set default sni servername to be the same as host
+  // if (result.servername == null) {
+  //   result.servername = result.host;
+  // }
 
   return result;
 }
@@ -248,7 +250,7 @@ const SOCKET_ERROR_EVENT_LIST = ["error", "close", "timeout", "parseError"] as c
 type ErrorHandlerEventName = typeof SOCKET_ERROR_EVENT_LIST[number] | "cancel";
 const SOCKET_ERROR_EVENTS = new Set(SOCKET_ERROR_EVENT_LIST);
 
-function makeConnection(
+async function makeConnection(
   options: ConnectionOptions,
   _callback: CallbackWithType<AnyError, Stream>
 ) {
@@ -271,7 +273,7 @@ function makeConnection(
 
   try {
     if (useTLS) {
-      const tlsSocket = tls.connect(parseSslOptions(options));
+      const tlsSocket = await Deno.connectTls(parseSslOptions(options));
       if (typeof tlsSocket.disableRenegotiation === "function") {
         tlsSocket.disableRenegotiation();
       }

@@ -944,13 +944,13 @@ export const OPTIONS = {
   tlsInsecure: {
     transform({ name, options, values: [value] }) {
       const tlsInsecure = getBoolean(name, value);
-      if (tlsInsecure) {
-        options.checkServerIdentity = undefined;
-        options.rejectUnauthorized = false;
-      } else {
-        options.checkServerIdentity = options.tlsAllowInvalidHostnames ? undefined : (true as any);
-        options.rejectUnauthorized = options.tlsAllowInvalidCertificates ? false : true;
-      }
+      // if (tlsInsecure) {
+      //   options.checkServerIdentity = undefined;
+      //   options.rejectUnauthorized = false;
+      // } else {
+      //   options.checkServerIdentity = options.tlsAllowInvalidHostnames ? undefined : (true as any);
+      //   options.rejectUnauthorized = options.tlsAllowInvalidCertificates ? false : true;
+      // }
       return tlsInsecure;
     }
   },

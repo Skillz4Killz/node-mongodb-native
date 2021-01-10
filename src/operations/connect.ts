@@ -116,14 +116,14 @@ export function createAutoEncrypter(client: MongoClient): AutoEncrypter | undefi
     return;
   }
 
-  try {
-    require.resolve("mongodb-client-encryption");
-  } catch (err) {
-    throw new MongoError(
-      "Auto-encryption requested, but the module is not installed. " +
-        "Please add `mongodb-client-encryption` as a dependency of your project"
-    );
-  }
+  // try {
+  //   require.resolve("mongodb-client-encryption");
+  // } catch (err) {
+  //   throw new MongoError(
+  //     "Auto-encryption requested, but the module is not installed. " +
+  //       "Please add `mongodb-client-encryption` as a dependency of your project"
+  //   );
+  // }
 
   const mongodbClientEncryption = require("mongodb-client-encryption");
   if (typeof mongodbClientEncryption.extension !== "function") {

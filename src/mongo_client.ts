@@ -56,14 +56,14 @@ type CleanUpHandlerFunction = (err?: AnyError, result?: any, opts?: any) => Prom
 
 /** @public */
 export type SupportedTLSConnectionOptions = Pick<
-  TLSConnectionOptions,
-  Extract<keyof TLSConnectionOptions, typeof LEGAL_TLS_SOCKET_OPTIONS[number]>
+  Deno.ConnectTlsOptions,
+  Extract<keyof Deno.ConnectTlsOptions, typeof LEGAL_TLS_SOCKET_OPTIONS[number]>
 >;
 
 /** @public */
 export type SupportedTLSSocketOptions = Pick<
-  TLSSocketOptions,
-  Extract<keyof TLSSocketOptions, typeof LEGAL_TLS_SOCKET_OPTIONS[number]>
+  Deno.ConnectTlsOptions,
+  Extract<keyof Deno.ConnectTlsOptions, typeof LEGAL_TLS_SOCKET_OPTIONS[number]>
 >;
 
 /** @public */
