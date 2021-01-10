@@ -1,22 +1,20 @@
-import { parseServerType } from '../sdam/server_description.ts';
-import type { Document } from '../bson.ts';
-import type { CompressorName } from './wire_protocol/compression.ts';
-import { ServerType } from '../sdam/common.ts';
+import { parseServerType } from "../sdam/server_description.ts";
+import type { Document } from "../bson.ts";
+import type { CompressorName } from "./wire_protocol/compression.ts";
+import { ServerType } from "../sdam/common.ts";
 
 const RESPONSE_FIELDS = [
-  'minWireVersion',
-  'maxWireVersion',
-  'maxBsonObjectSize',
-  'maxMessageSizeBytes',
-  'maxWriteBatchSize',
-  'logicalSessionTimeoutMinutes'
+  "minWireVersion",
+  "maxWireVersion",
+  "maxBsonObjectSize",
+  "maxMessageSizeBytes",
+  "maxWriteBatchSize",
+  "logicalSessionTimeoutMinutes",
 ] as const;
 
 /** @public */
 export interface StreamDescriptionOptions {
-  compression: {
-    compressors: CompressorName[];
-  };
+  compressors: CompressorName[];
 }
 
 /** @public */
@@ -32,7 +30,7 @@ export class StreamDescription {
   compressor?: CompressorName;
   logicalSessionTimeoutMinutes?: number;
 
-  __nodejs_mock_server__ = false;
+  __nodejs_mock_server__?: boolean;
 
   zlibCompressionLevel?: number;
 
@@ -44,27 +42,24 @@ export class StreamDescription {
     this.maxBsonObjectSize = 16777216;
     this.maxMessageSizeBytes = 48000000;
     this.maxWriteBatchSize = 100000;
-    this.compressors =
-      options && options.compression && Array.isArray(options.compression.compressors)
-        ? options.compression.compressors
-        : [];
+    this.compressors = options && options.compressors && Array.isArray(options.compressors) ? options.compressors : [];
   }
 
   receiveResponse(response: Document): void {
     this.type = parseServerType(response);
-    RESPONSE_FIELDS.forEach(field => {
-      if (typeof response[field] !== 'undefined') {
+    RESPONSE_FIELDS.forEach((field) => {
+      if (typeof response[field] !== "undefined") {
         this[field] = response[field];
       }
 
       // testing case
-      if ('__nodejs_mock_server__' in response) {
-        this.__nodejs_mock_server__ = response['__nodejs_mock_server__'];
+      if ("__nodejs_mock_server__" in response) {
+        this.__nodejs_mock_server__ = response["__nodejs_mock_server__"];
       }
     });
 
     if (response.compression) {
-      this.compressor = this.compressors.filter(c => response.compression?.includes(c))[0];
+      this.compressor = this.compressors.filter((c) => response.compression?.includes(c))[0];
     }
   }
 }

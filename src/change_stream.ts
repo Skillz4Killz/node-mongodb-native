@@ -169,7 +169,7 @@ export class ChangeStream extends EventEmitter {
   cursor?: ChangeStreamCursor;
   streamOptions?: CursorStreamOptions;
   /** @internal */
-  [kResumeQueue]: Denque;
+  [kResumeQueue]: Denque<any>;
   /** @internal */
   [kCursorStream]?: Readable;
   /** @internal */
@@ -558,7 +558,7 @@ function streamEvents(changeStream: ChangeStream, cursor: ChangeStreamCursor): v
 function endStream(changeStream: ChangeStream): void {
   const cursorStream = changeStream[kCursorStream];
   if (cursorStream) {
-    ["data", "close", "end", "error"].forEach((event) => cursorStream.removeAllListeners(event));
+    (["data", "close", "end", "error"] as const).forEach((event) => cursorStream.removeAllListeners(event));
     cursorStream.destroy();
   }
 

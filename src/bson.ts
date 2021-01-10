@@ -1,3 +1,4 @@
+import { SerializeOptions } from "../deps.ts";
 import type { OperationParent } from './operations/command.ts';
 // import { SerializeOptions } from '../deps.ts';
 
@@ -9,12 +10,11 @@ export interface Document {
 
 
 // TODO: Remove me when types from BSON are updated
-// export interface BSONSerializeOptions extends SerializeOptions {
 /**
  * BSON Serialization options.
  * @public
  */
-export interface BSONSerializeOptions {
+export interface BSONSerializeOptions extends Omit<SerializeOptions, "index"> {
   /** Return document results as raw BSON buffers */
   fieldsAsRaw?: { [key: string]: boolean };
   /** Promotes BSON values to native types where possible, set to false to only receive wrapper types */

@@ -6,7 +6,8 @@ import {
   filterOptions,
   deprecateOptions,
   MongoDBNamespace,
-  getTopology
+  getTopology,
+  DEFAULT_PK_FACTORY
 } from './utils.ts';
 import { loadAdmin } from './dynamic_loaders.ts';
 import { AggregationCursor } from './cursor/aggregation_cursor.ts';
@@ -54,28 +55,28 @@ import type { MongoClient, PkFactory } from './mongo_client.ts';
 import type { Admin } from './admin.ts';
 
 // Allowed parameters
-const legalOptionNames = [
-  'writeConcern',
-  'readPreference',
-  'readPreferenceTags',
-  'native_parser',
-  'forceServerObjectId',
-  'pkFactory',
-  'serializeFunctions',
-  'raw',
-  'authSource',
-  'ignoreUndefined',
-  'promoteLongs',
-  'readConcern',
-  'retryMiliSeconds',
-  'numberOfRetries',
-  'loggerLevel',
-  'logger',
-  'promoteBuffers',
-  'promoteLongs',
-  'promoteValues',
-  'compression',
-  'retryWrites'
+const DB_OPTIONS_ALLOW_LIST = [
+  "writeConcern",
+  "readPreference",
+  "readPreferenceTags",
+  "native_parser",
+  "forceServerObjectId",
+  "pkFactory",
+  "serializeFunctions",
+  "raw",
+  "authSource",
+  "ignoreUndefined",
+  "promoteLongs",
+  "readConcern",
+  "retryMiliSeconds",
+  "numberOfRetries",
+  "loggerLevel",
+  "logger",
+  "promoteBuffers",
+  "promoteLongs",
+  "promoteValues",
+  "compression",
+  "retryWrites",
 ];
 
 /** @internal */
@@ -149,7 +150,7 @@ export class Db {
     emitDeprecatedOptionWarning(options, ['promiseLibrary']);
 
     // Filter the options
-    options = filterOptions(options, legalOptionNames);
+    options = filterOptions(options, DB_OPTIONS_ALLOW_LIST);
 
     // Ensure we have a valid db name
     validateDatabaseName(databaseName);
@@ -167,12 +168,7 @@ export class Db {
       // Merge bson options
       bsonOptions: resolveBSONOptions(options, client),
       // Set up the primary key factory or fallback to ObjectId
-      pkFactory: options?.pkFactory ?? {
-        createPk() {
-          // We prefer not to rely on ObjectId having a createPk method
-          return new ObjectId();
-        }
-      },
+      pkFactory: options?.pkFactory ?? DEFAULT_PK_FACTORY,
       // ReadConcern
       readConcern: ReadConcern.fromOptions(options),
       writeConcern: WriteConcern.fromOptions(options),

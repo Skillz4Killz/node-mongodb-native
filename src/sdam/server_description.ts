@@ -1,20 +1,16 @@
-import { arrayStrictEqual, errorStrictEqual } from '../utils.ts';
-import { ServerType } from './common.ts';
-import { now } from '../utils.ts';
-import type { ClusterTime } from './common.ts';
+import { arrayStrictEqual, errorStrictEqual, HostAddress } from "../utils.ts";
+import { ServerType } from "./common.ts";
+import { now } from "../utils.ts";
+import type { ClusterTime } from "./common.ts";
 import { Document, Long, ObjectId } from "../../deps.ts";
 
-const WRITABLE_SERVER_TYPES = new Set([
-  ServerType.RSPrimary,
-  ServerType.Standalone,
-  ServerType.Mongos
-]);
+const WRITABLE_SERVER_TYPES = new Set([ServerType.RSPrimary, ServerType.Standalone, ServerType.Mongos]);
 
 const DATA_BEARING_SERVER_TYPES = new Set([
   ServerType.RSPrimary,
   ServerType.RSSecondary,
   ServerType.Mongos,
-  ServerType.Standalone
+  ServerType.Standalone,
 ]);
 
 /** @public */
@@ -45,6 +41,7 @@ export interface ServerDescriptionOptions {
  * @public
  */
 export class ServerDescription {
+  private _hostAddress: HostAddress;
   address: string;
   type: ServerType;
   hosts: string[];
@@ -77,8 +74,14 @@ export class ServerDescription {
    * @param address - The address of the server
    * @param ismaster - An optional ismaster response for this server
    */
-  constructor(address: string, ismaster?: Document, options?: ServerDescriptionOptions) {
-    this.address = address;
+  constructor(address: HostAddress | string, ismaster?: Document, options?: ServerDescriptionOptions) {
+    if (typeof address === "string") {
+      this._hostAddress = new HostAddress(address);
+      this.address = this._hostAddress.toString();
+    } else {
+      this._hostAddress = address;
+      this.address = this._hostAddress.toString();
+    }
     this.type = parseServerType(ismaster);
     this.hosts = ismaster?.hosts?.map((host: string) => host.toLowerCase()) ?? [];
     this.passives = ismaster?.passives?.map((host: string) => host.toLowerCase()) ?? [];
@@ -129,6 +132,11 @@ export class ServerDescription {
     }
   }
 
+  get hostAddress(): HostAddress {
+    if (this._hostAddress) return this._hostAddress;
+    else return new HostAddress(this.address);
+  }
+
   get allHosts(): string[] {
     return this.hosts.concat(this.arbiters).concat(this.passives);
   }
@@ -154,7 +162,7 @@ export class ServerDescription {
   }
 
   get port(): number {
-    const port = this.address.split(':').pop();
+    const port = this.address.split(":").pop();
     return port ? Number.parseInt(port, 10) : 27017;
   }
 
@@ -199,7 +207,7 @@ export function parseServerType(ismaster?: Document): ServerType {
     return ServerType.RSGhost;
   }
 
-  if (ismaster.msg && ismaster.msg === 'isdbgrid') {
+  if (ismaster.msg && ismaster.msg === "isdbgrid") {
     return ServerType.Mongos;
   }
 
@@ -224,10 +232,7 @@ function tagsStrictEqual(tags: TagSet, tags2: TagSet): boolean {
   const tagsKeys = Object.keys(tags);
   const tags2Keys = Object.keys(tags2);
 
-  return (
-    tagsKeys.length === tags2Keys.length &&
-    tagsKeys.every((key: string) => tags2[key] === tags[key])
-  );
+  return tagsKeys.length === tags2Keys.length && tagsKeys.every((key: string) => tags2[key] === tags[key]);
 }
 
 /**

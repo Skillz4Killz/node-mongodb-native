@@ -8,6 +8,7 @@ import type { Server } from "../sdam/server.ts";
 import type { Topology } from "../sdam/topology.ts";
 import type { ExecutionResult } from "../operations/execute_operation.ts";
 import { ReadConcern, ReadConcernLike } from "../read_concern.ts";
+import { ns } from "../../mod.ts";
 
 const kId = Symbol("id");
 const kDocuments = Symbol("documents");
@@ -608,7 +609,7 @@ function next(cursor: AbstractCursor, blocking: boolean, callback: Callback<Docu
             typeof response.cursor.id === "number" ? Long.fromNumber(response.cursor.id) : response.cursor.id;
 
           if (response.cursor.ns) {
-            cursor[kNamespace] = MongoDBNamespace.fromString(response.cursor.ns);
+            cursor[kNamespace] = ns(response.cursor.ns);
           }
 
           cursor[kDocuments] = response.cursor.firstBatch;

@@ -1,5 +1,4 @@
-import { ObjectId } from "../deps.ts";
-import { emitDeprecatedOptionWarning, resolveOptions } from './utils.ts';
+import { resolveOptions, DEFAULT_PK_FACTORY } from "./utils.ts";
 import { ReadPreference, ReadPreferenceLike } from './read_preference.ts';
 import {
   normalizeHintField,
@@ -176,24 +175,18 @@ export class Collection {
    */
   constructor(db: Db, name: string, options?: CollectionOptions) {
     checkCollectionName(name);
-    emitDeprecatedOptionWarning(options, ['promiseLibrary']);
 
     // Internal state
     this.s = {
       db,
       options,
       namespace: new MongoDBNamespace(db.databaseName, name),
-      pkFactory: db.options?.pkFactory ?? {
-        createPk() {
-          // We prefer not to rely on ObjectId having a createPk method
-          return new ObjectId();
-        }
-      },
+      pkFactory: db.options?.pkFactory ?? DEFAULT_PK_FACTORY,
       readPreference: ReadPreference.fromOptions(options),
       bsonOptions: resolveBSONOptions(options, db),
       readConcern: ReadConcern.fromOptions(options),
       writeConcern: WriteConcern.fromOptions(options),
-      slaveOk: options == null || options.slaveOk == null ? db.slaveOk : options.slaveOk
+      slaveOk: options == null || options.slaveOk == null ? db.slaveOk : options.slaveOk,
     };
   }
 

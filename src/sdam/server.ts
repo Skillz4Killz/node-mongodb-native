@@ -33,6 +33,7 @@ import type { ServerHeartbeatSucceededEvent } from "./events.ts";
 import type { ClientSession } from "../sessions.ts";
 import type { Document } from "../bson.ts";
 import type { AutoEncrypter } from "../deps.ts";
+import { MonitorOptions } from "../../mod.ts";
 
 // Used for filtering out fields for logging
 const DEBUG_FIELDS = [
@@ -72,16 +73,14 @@ const stateTransition = makeStateMachine({
 const kMonitor = Symbol("monitor");
 
 /** @public */
-export interface ServerOptions extends ConnectionPoolOptions, ClientMetadataOptions {
-  credentials?: MongoCredentials;
-}
+export type ServerOptions = Omit<ConnectionPoolOptions, 'id' | 'generation' | 'hostAddress'> & MonitorOptions;
 
 /** @internal */
 export interface ServerPrivate {
   /** The server description for this server */
   description: ServerDescription;
   /** A copy of the options used to construct this instance */
-  options?: ServerOptions;
+  options: ServerOptions;
   /** A logger instance */
   logger: Logger;
   /** The current state of the Server */
@@ -118,16 +117,18 @@ export class Server extends EventEmitter {
   /**
    * Create a server
    */
-  constructor(topology: Topology, description: ServerDescription, options?: ServerOptions) {
+  constructor(topology: Topology, description: ServerDescription, options: ServerOptions) {
     super();
+
+    const poolOptions = { hostAddress: description.hostAddress, ...options };
 
     this.s = {
       description,
       options,
-      logger: new Logger("Server", options),
+      logger: new Logger("Server"),
       state: STATE_CLOSED,
       topology,
-      pool: new ConnectionPool({ host: description.host, port: description.port, ...options }),
+      pool: new ConnectionPool(poolOptions),
     };
 
     relayEvents(this.s.pool, this, ["commandStarted", "commandSucceeded", "commandFailed"].concat(CMAP_EVENT_NAMES));
@@ -155,7 +156,7 @@ export class Server extends EventEmitter {
     this[kMonitor].on(Server.SERVER_HEARTBEAT_SUCCEEDED, (event: ServerHeartbeatSucceededEvent) => {
       this.emit(
         Server.DESCRIPTION_RECEIVED,
-        new ServerDescription(this.description.address, event.reply, {
+        new ServerDescription(this.description.hostAddress, event.reply, {
           roundTripTime: calculateRoundTripTime(this.description.roundTripTime, event.duration),
         })
       );
@@ -388,7 +389,7 @@ function markServerUnknown(server: Server, error?: MongoError) {
 
   server.emit(
     Server.DESCRIPTION_RECEIVED,
-    new ServerDescription(server.description.address, undefined, {
+    new ServerDescription(server.description.hostAddress, undefined, {
       error,
       topologyVersion: error && error.topologyVersion ? error.topologyVersion : server.description.topologyVersion,
     })

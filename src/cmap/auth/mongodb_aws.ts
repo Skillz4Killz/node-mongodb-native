@@ -3,7 +3,6 @@ import { MongoCredentials } from './mongo_credentials.ts';
 import { MongoError } from '../../error.ts';
 import { maxWireVersion, Callback, ns } from '../../utils.ts';
 
-import { aws4 } from '../../deps.ts';
 import { AuthMechanism } from './defaultAuthProviders.ts';
 import { deserialize, randomBytes, serialize } from "../../../deps.ts";
 import { BSONSerializeOptions } from "../../../mod.ts";
@@ -42,7 +41,7 @@ export class MongoDBAWS extends AuthProvider {
 
     if (credentials.username == null) {
       makeTempCredentials(credentials, (err, tempCredentials) => {
-        if (err) return callback(err);
+        if (err || !tempCredentials) return callback(err);
 
         authContext.credentials = tempCredentials;
         this.auth(authContext, callback);

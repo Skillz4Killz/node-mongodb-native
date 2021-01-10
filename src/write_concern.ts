@@ -1,5 +1,5 @@
 /** @public */
-export type W = number | 'majority';
+export type W = number | "majority";
 
 /** @public */
 export interface WriteConcernOptions {
@@ -12,18 +12,20 @@ export interface WriteConcernSettings {
   /** The write concern */
   w?: W;
   /** The write concern timeout */
-  wtimeout?: number;
-  /** The write concern timeout */
   wtimeoutMS?: number;
   /** The journal write concern */
-  j?: boolean;
-  /** The journal write concern */
   journal?: boolean;
+
+  // legacy options
+  /** The journal write concern */
+  j?: boolean;
+  /** The write concern timeout */
+  wtimeout?: number;
   /** The file sync write concern */
   fsync?: boolean | 1;
 }
 
-export const WRITE_CONCERN_KEYS = ['w', 'wtimeout', 'j', 'journal', 'fsync'];
+export const WRITE_CONCERN_KEYS = ["w", "wtimeout", "j", "journal", "fsync"];
 
 /**
  * A MongoDB WriteConcern, which describes the level of acknowledgement
@@ -70,25 +72,24 @@ export class WriteConcern {
 
   /** Construct a WriteConcern given an options object. */
   static fromOptions(
-    options?: WriteConcernOptions | WriteConcern,
+    options?: WriteConcernOptions | WriteConcern | W,
     inherit?: WriteConcernOptions | WriteConcern
   ): WriteConcern | undefined {
-    if (typeof options === 'undefined') return undefined;
+    if (typeof options === "undefined") return undefined;
     inherit = inherit ?? {};
-    const opts: WriteConcern | WriteConcernSettings | undefined =
-      options instanceof WriteConcern ? options : options.writeConcern;
+    let opts;
+    if (typeof options === "string" || typeof options === "number") {
+      opts = { w: options };
+    } else if (options instanceof WriteConcern) {
+      opts = options;
+    } else {
+      opts = options.writeConcern;
+    }
     const parentOpts: WriteConcern | WriteConcernSettings | undefined =
       inherit instanceof WriteConcern ? inherit : inherit.writeConcern;
 
     const { w, wtimeout, j, fsync, journal, wtimeoutMS } = { ...parentOpts, ...opts };
-    if (
-      w != null ||
-      wtimeout != null ||
-      wtimeoutMS != null ||
-      j != null ||
-      journal != null ||
-      fsync != null
-    ) {
+    if (w != null || wtimeout != null || wtimeoutMS != null || j != null || journal != null || fsync != null) {
       return new WriteConcern(w, wtimeout ?? wtimeoutMS, j ?? journal, fsync);
     }
     return undefined;

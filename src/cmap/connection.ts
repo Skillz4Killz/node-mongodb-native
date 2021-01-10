@@ -11,6 +11,7 @@ import {
   Callback,
   MongoDBNamespace,
   maxWireVersion,
+  HostAddress,
 } from "../utils.ts";
 import { AnyError, MongoError, MongoNetworkError, MongoNetworkTimeoutError, MongoWriteConcernError } from "../error.ts";
 import {
@@ -32,6 +33,7 @@ import { applyCommonQueryOptions, getReadPreference, isSharded } from "./wire_pr
 import { ReadPreference, ReadPreferenceLike } from "../read_preference.ts";
 import { isTransactionCommand } from "../transactions.ts";
 import type { W, WriteConcern, WriteConcernOptions } from "../write_concern.ts";
+import { SupportedNodeConnectionOptions } from "../../mod.ts";
 
 const kStream = Symbol("stream");
 const kQueue = Symbol("queue");
@@ -91,29 +93,26 @@ export interface GetMoreOptions extends CommandOptions {
 }
 
 /** @public */
-export interface ConnectionOptions
-  extends Partial<TcpNetConnectOpts>,
-    Partial<IpcNetConnectOpts>,
-    Partial<TLSConnectionOptions>,
-    StreamDescriptionOptions,
-    LoggerOptions {
-  id: number;
-  monitorCommands: boolean;
+export interface ConnectionOptions extends SupportedNodeConnectionOptions, StreamDescriptionOptions {
+  // Internal creation info
+  id: number | "<monitor>";
   generation: number;
+  hostAddress: HostAddress;
+  // Settings
   autoEncrypter?: AutoEncrypter;
+  monitorCommands: boolean;
   connectionType: typeof Connection;
   credentials?: MongoCredentials;
   connectTimeoutMS?: number;
   connectionTimeout?: number;
-  ssl: boolean;
+  tls: boolean;
   keepAlive?: boolean;
   keepAliveInitialDelay?: number;
   noDelay?: boolean;
   socketTimeout?: number;
+  cancellationToken?: EventEmitter;
 
   metadata: ClientMetadata;
-  /** Required EventEmitter option */
-  captureRejections?: boolean;
 }
 
 /** @public */
@@ -124,7 +123,7 @@ export interface DestroyOptions {
 
 /** @public */
 export class Connection extends EventEmitter {
-  id: number;
+  id: number | '<monitor>';
   address: string;
   socketTimeout: number;
   monitorCommands: boolean;
@@ -162,7 +161,7 @@ export class Connection extends EventEmitter {
     this.id = options.id;
     this.address = streamIdentifier(stream);
     this.socketTimeout = options.socketTimeout ?? 0;
-    this.monitorCommands = options.monitorCommands ?? options.monitorCommands;
+    this.monitorCommands = options.monitorCommands;
     this.closed = false;
     this.destroyed = false;
 
@@ -172,7 +171,10 @@ export class Connection extends EventEmitter {
 
     // setup parser stream and message handling
     this[kQueue] = new Map();
-    this[kMessageStream] = new MessageStream(options);
+    this[kMessageStream] = new MessageStream({
+      ...options,
+      maxBsonMessageSize: this.ismaster?.maxBsonMessageSize
+    });
     this[kMessageStream].on("message", messageHandler(this));
     this[kStream] = stream;
     stream.on("error", () => {
@@ -542,7 +544,7 @@ export class CryptoConnection extends Connection {
 
     const serverWireVersion = maxWireVersion(this);
     if (serverWireVersion === 0) {
-      // This means the initial handshake hasn't happend yet
+      // This means the initial handshake hasn't happened yet
       return super.command(ns, cmd, options, callback);
     }
 

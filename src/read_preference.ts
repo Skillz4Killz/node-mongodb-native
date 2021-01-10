@@ -1,17 +1,17 @@
-import type { TagSet } from './sdam/server_description.ts';
-import type { Document } from './bson.ts';
-import type { ClientSession } from './sessions.ts';
+import type { TagSet } from "./sdam/server_description.ts";
+import type { Document } from "./bson.ts";
+import type { ClientSession } from "./sessions.ts";
 
 /** @public */
 export type ReadPreferenceLike = ReadPreference | ReadPreferenceModeId;
 
 /** @public */
 export const ReadPreferenceMode = {
-  primary: 'primary',
-  primaryPreferred: 'primaryPreferred',
-  secondary: 'secondary',
-  secondaryPreferred: 'secondaryPreferred',
-  nearest: 'nearest'
+  primary: "primary",
+  primaryPreferred: "primaryPreferred",
+  secondary: "secondary",
+  secondaryPreferred: "secondaryPreferred",
+  nearest: "nearest",
 } as const;
 
 /** @public */
@@ -85,11 +85,11 @@ export class ReadPreference {
     if (!ReadPreference.isValid(mode)) {
       throw new TypeError(`Invalid read preference mode ${JSON.stringify(mode)}`);
     }
-    if (options === undefined && typeof tags === 'object' && !Array.isArray(tags)) {
+    if (options === undefined && typeof tags === "object" && !Array.isArray(tags)) {
       options = tags;
       tags = undefined;
     } else if (tags && !Array.isArray(tags)) {
-      throw new TypeError('ReadPreference tags must be an array');
+      throw new TypeError("ReadPreference tags must be an array");
     }
 
     this.mode = mode;
@@ -101,7 +101,7 @@ export class ReadPreference {
     options = options ?? {};
     if (options.maxStalenessSeconds != null) {
       if (options.maxStalenessSeconds <= 0) {
-        throw new TypeError('maxStalenessSeconds must be a positive integer');
+        throw new TypeError("maxStalenessSeconds must be a positive integer");
       }
 
       this.maxStalenessSeconds = options.maxStalenessSeconds;
@@ -113,15 +113,15 @@ export class ReadPreference {
 
     if (this.mode === ReadPreference.PRIMARY) {
       if (this.tags && Array.isArray(this.tags) && this.tags.length > 0) {
-        throw new TypeError('Primary read preference cannot be combined with tags');
+        throw new TypeError("Primary read preference cannot be combined with tags");
       }
 
       if (this.maxStalenessSeconds) {
-        throw new TypeError('Primary read preference cannot be combined with maxStalenessSeconds');
+        throw new TypeError("Primary read preference cannot be combined with maxStalenessSeconds");
       }
 
       if (this.hedge) {
-        throw new TypeError('Primary read preference cannot be combined with hedge');
+        throw new TypeError("Primary read preference cannot be combined with hedge");
       }
     }
   }
@@ -142,24 +142,27 @@ export class ReadPreference {
    */
   static fromOptions(options?: ReadPreferenceFromOptions): ReadPreference | undefined {
     if (!options) return;
-    const readPreference =
-      options.readPreference ?? options.session?.transaction.options.readPreference;
+    const readPreference = options.readPreference ?? options.session?.transaction.options.readPreference;
     const readPreferenceTags = options.readPreferenceTags;
 
     if (readPreference == null) {
       return;
     }
 
-    if (typeof readPreference === 'string') {
+    if (typeof readPreference === "string") {
       return new ReadPreference(readPreference as ReadPreferenceModeId, readPreferenceTags);
-    } else if (!(readPreference instanceof ReadPreference) && typeof readPreference === 'object') {
+    } else if (!(readPreference instanceof ReadPreference) && typeof readPreference === "object") {
       const mode = readPreference.mode || readPreference.preference;
-      if (mode && typeof mode === 'string') {
-        return new ReadPreference(mode as ReadPreferenceModeId, readPreference.tags, {
+      if (mode && typeof mode === "string") {
+        return new ReadPreference(mode as ReadPreferenceModeId, readPreference.tags ?? readPreferenceTags, {
           maxStalenessSeconds: readPreference.maxStalenessSeconds,
-          hedge: options.hedge
+          hedge: options.hedge,
         });
       }
+    }
+
+    if (readPreferenceTags) {
+      readPreference.tags = readPreferenceTags;
     }
 
     return readPreference as ReadPreference;
@@ -172,17 +175,17 @@ export class ReadPreference {
     if (options.readPreference == null) return options;
     const r = options.readPreference;
 
-    if (typeof r === 'string') {
+    if (typeof r === "string") {
       options.readPreference = new ReadPreference(r as ReadPreferenceModeId);
-    } else if (r && !(r instanceof ReadPreference) && typeof r === 'object') {
+    } else if (r && !(r instanceof ReadPreference) && typeof r === "object") {
       const mode = r.mode || r.preference;
-      if (mode && typeof mode === 'string') {
+      if (mode && typeof mode === "string") {
         options.readPreference = new ReadPreference(mode as ReadPreferenceModeId, r.tags, {
-          maxStalenessSeconds: r.maxStalenessSeconds
+          maxStalenessSeconds: r.maxStalenessSeconds,
         });
       }
     } else if (!(r instanceof ReadPreference)) {
-      throw new TypeError('Invalid read preference: ' + r);
+      throw new TypeError("Invalid read preference: " + r);
     }
 
     return options;
@@ -200,7 +203,7 @@ export class ReadPreference {
       ReadPreference.SECONDARY,
       ReadPreference.SECONDARY_PREFERRED,
       ReadPreference.NEAREST,
-      null
+      null,
     ]);
 
     return VALID_MODES.has(mode as ReadPreferenceModeId);
@@ -212,7 +215,7 @@ export class ReadPreference {
    * @param mode - The string representing the read preference mode.
    */
   isValid(mode?: string): boolean {
-    return ReadPreference.isValid(typeof mode === 'string' ? mode : this.mode);
+    return ReadPreference.isValid(typeof mode === "string" ? mode : this.mode);
   }
 
   /**
@@ -225,7 +228,7 @@ export class ReadPreference {
       ReadPreference.PRIMARY_PREFERRED,
       ReadPreference.SECONDARY,
       ReadPreference.SECONDARY_PREFERRED,
-      ReadPreference.NEAREST
+      ReadPreference.NEAREST,
     ]);
 
     return NEEDS_SLAVEOK.has(this.mode);
