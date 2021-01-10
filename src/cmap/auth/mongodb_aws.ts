@@ -4,7 +4,7 @@ import { MongoError } from '../../error.ts';
 import { maxWireVersion, Callback, ns } from '../../utils.ts';
 
 import { AuthMechanism } from './defaultAuthProviders.ts';
-import { deserialize, randomBytes, serialize } from "../../../deps.ts";
+import { deserialize, randomBytes, serialize, AWSSignerV4 } from "../../../deps.ts";
 import { BSONSerializeOptions } from "../../../mod.ts";
 
 const ASCII_N = 110;
@@ -30,9 +30,9 @@ export class MongoDBAWS extends AuthProvider {
       return callback(new MongoError('AuthContext must provide credentials.'));
     }
 
-    if ('kModuleError' in aws4) {
-      return callback(aws4['kModuleError']);
-    }
+    // if ('kModuleError' in aws4) {
+    //   return callback(aws4['kModuleError']);
+    // }
 
     if (maxWireVersion(connection) < 9) {
       callback(new MongoError('MONGODB-AWS authentication requires MongoDB version 4.4 or later'));
@@ -66,7 +66,7 @@ export class MongoDBAWS extends AuthProvider {
         payload: serialize({ r: nonce, p: ASCII_N }, bsonOptions)
       };
 
-      connection.command(ns(`${db}.$cmd`), saslStart, undefined, (err, res) => {
+      connection.command(ns(`${db}.$cmd`), saslStart, undefined, async (err, res) => {
         if (err) return callback(err);
 
         const serverResponse = deserialize(res.payload.buffer, bsonOptions);
@@ -90,32 +90,28 @@ export class MongoDBAWS extends AuthProvider {
           return;
         }
 
-        const body = 'Action=GetCallerIdentity&Version=2011-06-15';
-        const options = aws4.sign(
-          {
-            method: 'POST',
-            host,
-            region: deriveRegion(serverResponse.h),
-            service: 'sts',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'Content-Length': body.length,
-              'X-MongoDB-Server-Nonce': serverNonce.toString('base64'),
-              'X-MongoDB-GS2-CB-Flag': 'n'
-            },
-            path: '/',
-            body
+        const signer = new AWSSignerV4(deriveRegion(serverResponse.h), {
+          awsAccessKeyId: username,
+          awsSecretKey: password,
+          sessionToken: token,
+        });
+        const body = new TextEncoder().encode('Action=GetCallerIdentity&Version=2011-06-15');
+        const request = new Request(host, {
+          method: "POST",
+          headers: {
+            "Content-Length": body.length.toString(),
+            "Content-Type": "application/x-www-form-urlencoded",
+            "X-MongoDB-Server-Nonce": serverNonce.toString("base64"),
+            "X-MongoDB-GS2-CB-Flag": "n",
           },
-          {
-            accessKeyId: username,
-            secretAccessKey: password,
-            token
-          }
-        );
+          body,
+        });
+        const req = await signer.sign("sts", request);
+        const options = await fetch(req);
 
-        const authorization = options.headers.Authorization;
-        const date = options.headers['X-Amz-Date'];
-        const payload: AWSSaslContinuePayload = { a: authorization, d: date };
+        const authorization = options.headers.get('Authorization');
+        const date = options.headers.get('X-Amz-Date');
+        const payload: AWSSaslContinuePayload = { a: authorization!, d: date! };
         if (token) {
           payload.t = token;
         }

@@ -153,7 +153,7 @@ export class ConnectionPool extends EventEmitter {
       throw new TypeError("Connection pool minimum size must not be greater than maximum pool size");
     }
 
-    this[kLogger] = new Logger("ConnectionPool", options);
+    this[kLogger] = new Logger("ConnectionPool");
     this[kConnections] = new Denque();
     this[kPermits] = this.options.maxPoolSize;
     this[kMinPoolSizeTimer] = undefined;

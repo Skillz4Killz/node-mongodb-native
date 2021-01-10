@@ -86,7 +86,7 @@ export class AddUserOperation extends CommandOperation<Document> {
       const md5 = createHash('md5');
       // Generate keys used for authentication
       md5.update(username + ':mongo:' + password);
-      userPassword = md5.digest();
+      userPassword = md5.toString();
     }
 
     // Build the command to execute

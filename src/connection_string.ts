@@ -265,7 +265,7 @@ class CaseInsensitiveMap extends Map<string, any> {
 export function parseOptions(
   uri: string,
   mongoClient?: MongoClient | MongoClientOptions,
-  options: MongoClientOptions = {}
+  options?: MongoClientOptions
 ): Readonly<MongoOptions> {
   if (typeof mongoClient !== 'undefined' && !(mongoClient instanceof MongoClient)) {
     options = mongoClient;
@@ -279,7 +279,7 @@ export function parseOptions(
   if (isSRV) {
     // SRV Record is resolved upon connecting
     mongoOptions.srvHost = hosts[0];
-    options.tls = true;
+    if (options) options.tls = true;
   }
 
   const urlOptions = new CaseInsensitiveMap();
@@ -404,10 +404,10 @@ export function parseOptions(
 
   checkTLSOptions(mongoOptions);
 
-  if (mongoClient && options.autoEncryption) {
+  if (mongoClient && options?.autoEncryption) {
     mongoOptions.autoEncrypter = createAutoEncrypter(mongoClient);
   }
-  if (options.promiseLibrary) PromiseProvider.set(options.promiseLibrary);
+  if (options?.promiseLibrary) PromiseProvider.set(options?.promiseLibrary);
 
   if (mongoOptions.directConnection && typeof mongoOptions.srvHost === 'string') {
     throw new MongoParseError('directConnection not supported with SRV URI');

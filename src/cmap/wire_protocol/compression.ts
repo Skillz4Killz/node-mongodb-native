@@ -1,8 +1,7 @@
 import type { Callback } from '../../utils.ts';
 import type { OperationDescription } from '../message_stream.ts';
 
-import { Snappy } from '../../deps.ts';
-import { Buffer, zlib } from "../../../deps.ts";
+import { Buffer, deflate } from "../../../deps.ts";
 
 /** @public */
 export enum Compressor {
@@ -29,25 +28,25 @@ export const uncompressibleCommands = new Set([
 
 // Facilitate compressing a message using an agreed compressor
 export function compress(
-  self: { options: OperationDescription & ZlibOptions },
+  self: { options: OperationDescription },
   dataToBeCompressed: Buffer,
   callback: Callback<Buffer>
 ): void {
-  const zlibOptions = {} as ZlibOptions;
+  // const zlibOptions = {} as ZlibOptions;
   switch (self.options.agreedCompressor) {
-    case 'snappy':
-      if ('kModuleError' in Snappy) {
-        return callback(Snappy['kModuleError']);
-      }
-      Snappy.compress(dataToBeCompressed, callback);
-      break;
-    case 'zlib':
-      // Determine zlibCompressionLevel
-      if (self.options.zlibCompressionLevel) {
-        zlibOptions.level = self.options.zlibCompressionLevel;
-      }
-      deflate(dataToBeCompressed, zlibOptions, callback as CompressCallback);
-      break;
+    // case 'snappy':
+    //   if ('kModuleError' in Snappy) {
+    //     return callback(Snappy['kModuleError']);
+    //   }
+    //   Snappy.compress(dataToBeCompressed, callback);
+    //   break;
+    // case 'zlib':
+    //   // Determine zlibCompressionLevel
+    //   if (self.options.zlibCompressionLevel) {
+    //     zlibOptions.level = self.options.zlibCompressionLevel;
+    //   }
+    //   deflate(dataToBeCompressed, zlibOptions, callback as CompressCallback);
+    //   break;
     default:
       throw new Error(
         'Attempt to compress message using unknown compressor "' +
@@ -71,15 +70,15 @@ export function decompress(
   }
 
   switch (compressorID) {
-    case Compressor.snappy:
-      if ('kModuleError' in Snappy) {
-        return callback(Snappy['kModuleError']);
-      }
-      Snappy.uncompress(compressedData, { asBuffer: true }, callback as Callback);
-      break;
-    case Compressor.zlib:
-      inflate(compressedData, callback as CompressCallback);
-      break;
+    // case Compressor.snappy:
+    //   if ('kModuleError' in Snappy) {
+    //     return callback(Snappy['kModuleError']);
+    //   }
+    //   Snappy.uncompress(compressedData, { asBuffer: true }, callback as Callback);
+    //   break;
+    // case Compressor.zlib:
+    //   inflate(compressedData, callback as CompressCallback);
+    //   break;
     default:
       callback(undefined, compressedData);
   }

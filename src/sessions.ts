@@ -96,7 +96,6 @@ class ClientSession extends EventEmitter {
     }
 
     options = options ?? {};
-    clientOptions = clientOptions || {};
 
     this.topology = topology;
     this.sessionPool = sessionPool;
