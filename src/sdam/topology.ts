@@ -185,7 +185,7 @@ export class Topology extends EventEmitter {
   /**
    * @param seeds - a list of HostAddress instances to connect to
    */
-  constructor(seeds: string | string[] | HostAddress | HostAddress[], options?: TopologyOptions) {
+  constructor(seeds: string | string[] | HostAddress | HostAddress[], options: TopologyOptions) {
     super();
 
     // Options should only be undefined in tests, MongoClient will always have defined options

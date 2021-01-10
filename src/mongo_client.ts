@@ -428,8 +428,11 @@ export class MongoClient extends EventEmitter {
     options?: MongoClientOptions | Callback<MongoClient>,
     callback?: Callback<MongoClient>
   ): Promise<MongoClient> | void {
-    if (typeof options === "function") (callback = options), (options = {});
-    options = options ?? {};
+    if (typeof options === "function") {
+      callback = options;
+      options = undefined;
+    }
+
 
     try {
       // Create client
