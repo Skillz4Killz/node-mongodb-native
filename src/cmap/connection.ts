@@ -1,4 +1,4 @@
-import { EventEmitter, Long, SocketConnectOpts, TLSConnectionOpts } from "../../deps.ts";
+import { EventEmitter, Long } from "../../deps.ts";
 import { MessageStream, OperationDescription } from "./message_stream.ts";
 import { StreamDescription, StreamDescriptionOptions } from "./stream_description.ts";
 import { CommandStartedEvent, CommandFailedEvent, CommandSucceededEvent } from "./events.ts";
@@ -28,7 +28,6 @@ import { BSONSerializeOptions, Document, pluckBSONSerializeOptions } from "../bs
 import type { AutoEncrypter } from "../deps.ts";
 import type { MongoCredentials } from "./auth/mongo_credentials.ts";
 import type { Stream } from "./connect.ts";
-import type { LoggerOptions } from "../logger.ts";
 import { applyCommonQueryOptions, getReadPreference, isSharded } from "./wire_protocol/shared.ts";
 import { ReadPreference, ReadPreferenceLike } from "../read_preference.ts";
 import { isTransactionCommand } from "../transactions.ts";

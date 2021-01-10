@@ -684,9 +684,6 @@ export class Topology extends EventEmitter {
   set clusterTime(clusterTime: ClusterTime | undefined) {
     this.s.clusterTime = clusterTime;
   }
-
-  // legacy aliases
-  destroy = deprecate(Topology.prototype.close, "destroy() is deprecated, please use close() instead");
 }
 
 /** Destroys a server, and removes all event listeners from the instance */

@@ -1,24 +1,24 @@
 import { resolveOptions, DEFAULT_PK_FACTORY } from "./utils.ts";
-import { ReadPreference, ReadPreferenceLike } from './read_preference.ts';
+import { ReadPreference, ReadPreferenceLike } from "./read_preference.ts";
 import {
   normalizeHintField,
   checkCollectionName,
   deprecateOptions,
   MongoDBNamespace,
   Callback,
-  getTopology
-} from './utils.ts';
-import { Document, BSONSerializeOptions, resolveBSONOptions } from './bson.ts';
-import { MongoError } from './error.ts';
-import { UnorderedBulkOperation } from './bulk/unordered.ts';
-import { OrderedBulkOperation } from './bulk/ordered.ts';
-import { ChangeStream, ChangeStreamOptions } from './change_stream.ts';
-import { WriteConcern, WriteConcernOptions } from './write_concern.ts';
-import { ReadConcern, ReadConcernLike } from './read_concern.ts';
-import { AggregationCursor } from './cursor/aggregation_cursor.ts';
-import type { AggregateOptions } from './operations/aggregate.ts';
-import { BulkWriteOperation } from './operations/bulk_write.ts';
-import { CountDocumentsOperation, CountDocumentsOptions } from './operations/count_documents.ts';
+  getTopology,
+} from "./utils.ts";
+import { Document, BSONSerializeOptions, resolveBSONOptions } from "./bson.ts";
+import { MongoError } from "./error.ts";
+import { UnorderedBulkOperation } from "./bulk/unordered.ts";
+import { OrderedBulkOperation } from "./bulk/ordered.ts";
+import { ChangeStream, ChangeStreamOptions } from "./change_stream.ts";
+import { WriteConcern, WriteConcernOptions } from "./write_concern.ts";
+import { ReadConcern, ReadConcernLike } from "./read_concern.ts";
+import { AggregationCursor } from "./cursor/aggregation_cursor.ts";
+import type { AggregateOptions } from "./operations/aggregate.ts";
+import { BulkWriteOperation } from "./operations/bulk_write.ts";
+import { CountDocumentsOperation, CountDocumentsOptions } from "./operations/count_documents.ts";
 import {
   CreateIndexesOperation,
   CreateIndexOperation,
@@ -33,64 +33,54 @@ import {
   ListIndexesOptions,
   IndexSpecification,
   IndexDescription,
-  ListIndexesCursor
-} from './operations/indexes.ts';
-import { DistinctOperation, DistinctOptions } from './operations/distinct.ts';
-import { DropCollectionOperation, DropCollectionOptions } from './operations/drop.ts';
+  ListIndexesCursor,
+} from "./operations/indexes.ts";
+import { DistinctOperation, DistinctOptions } from "./operations/distinct.ts";
+import { DropCollectionOperation, DropCollectionOptions } from "./operations/drop.ts";
 import {
   EstimatedDocumentCountOperation,
-  EstimatedDocumentCountOptions
-} from './operations/estimated_document_count.ts';
-import type { FindOptions } from './operations/find.ts';
-import { FindOneOperation } from './operations/find_one.ts';
+  EstimatedDocumentCountOptions,
+} from "./operations/estimated_document_count.ts";
+import type { FindOptions } from "./operations/find.ts";
+import { FindOneOperation } from "./operations/find_one.ts";
 import {
   FindAndModifyOperation,
   FindOneAndDeleteOperation,
   FindOneAndReplaceOperation,
   FindOneAndUpdateOperation,
-  FindAndModifyOptions
-} from './operations/find_and_modify.ts';
+  FindAndModifyOptions,
+} from "./operations/find_and_modify.ts";
 import {
   InsertOneOperation,
   InsertOneOptions,
   InsertOneResult,
   InsertManyOperation,
-  InsertManyResult
-} from './operations/insert.ts';
+  InsertManyResult,
+} from "./operations/insert.ts";
 import {
   UpdateOneOperation,
   UpdateManyOperation,
   UpdateOptions,
   UpdateResult,
   ReplaceOneOperation,
-  ReplaceOptions
-} from './operations/update.ts';
-import {
-  DeleteOneOperation,
-  DeleteManyOperation,
-  DeleteOptions,
-  DeleteResult
-} from './operations/delete.ts';
-import { IsCappedOperation } from './operations/is_capped.ts';
-import {
-  MapReduceOperation,
-  MapFunction,
-  ReduceFunction,
-  MapReduceOptions
-} from './operations/map_reduce.ts';
-import { OptionsOperation } from './operations/options_operation.ts';
-import { RenameOperation, RenameOptions } from './operations/rename.ts';
-import { CollStatsOperation, CollStatsOptions } from './operations/stats.ts';
-import { executeOperation } from './operations/execute_operation.ts';
-import type { Db } from './db.ts';
-import type { OperationOptions, Hint } from './operations/operation.ts';
-import type { IndexInformationOptions } from './operations/common_functions.ts';
-import type { CountOptions } from './operations/count.ts';
-import type { BulkWriteResult, BulkWriteOptions, AnyBulkWriteOperation } from './bulk/common.ts';
-import type { PkFactory } from './mongo_client.ts';
-import type { Logger, LoggerOptions } from './logger.ts';
-import type { Sort } from './sort.ts';
-import { FindCursor } from './cursor/find_cursor.ts';
+  ReplaceOptions,
+} from "./operations/update.ts";
+import { DeleteOneOperation, DeleteManyOperation, DeleteOptions, DeleteResult } from "./operations/delete.ts";
+import { IsCappedOperation } from "./operations/is_capped.ts";
+import { MapReduceOperation, MapFunction, ReduceFunction, MapReduceOptions } from "./operations/map_reduce.ts";
+import { OptionsOperation } from "./operations/options_operation.ts";
+import { RenameOperation, RenameOptions } from "./operations/rename.ts";
+import { CollStatsOperation, CollStatsOptions } from "./operations/stats.ts";
+import { executeOperation } from "./operations/execute_operation.ts";
+import type { Db } from "./db.ts";
+import type { OperationOptions, Hint } from "./operations/operation.ts";
+import type { IndexInformationOptions } from "./operations/common_functions.ts";
+import type { CountOptions } from "./operations/count.ts";
+import type { BulkWriteResult, BulkWriteOptions, AnyBulkWriteOperation } from "./bulk/common.ts";
+import type { PkFactory } from "./mongo_client.ts";
+import type { Logger, LoggerOptions } from "./logger.ts";
+import type { Sort } from "./sort.ts";
+import { FindCursor } from "./cursor/find_cursor.ts";
 
 /** @public */
 export interface Collection {
@@ -101,19 +91,12 @@ export interface Collection {
     options?: DeleteOptions,
     callback?: Callback<DeleteResult>
   ): Promise<DeleteResult> | void;
-  removeOne(
-    filter: Document,
-    options?: DeleteOptions,
-    callback?: Callback<DeleteResult>
-  ): Promise<DeleteResult> | void;
+  removeOne(filter: Document, options?: DeleteOptions, callback?: Callback<DeleteResult>): Promise<DeleteResult> | void;
   findAndModify(this: any, query: any, sort: any, doc: any, options: any, callback: Callback): any;
 }
 
 /** @public */
-export interface CollectionOptions
-  extends BSONSerializeOptions,
-    WriteConcernOptions,
-    LoggerOptions {
+export interface CollectionOptions extends BSONSerializeOptions, WriteConcernOptions, LoggerOptions {
   slaveOk?: boolean;
   /** Returns an error if the collection does not exist */
   strict?: boolean;
@@ -277,7 +260,7 @@ export class Collection {
     options?: InsertOneOptions | Callback<InsertOneResult>,
     callback?: Callback<InsertOneResult>
   ): Promise<InsertOneResult> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
 
     return executeOperation(
       getTopology(this),
@@ -298,17 +281,13 @@ export class Collection {
   insertMany(docs: Document[]): Promise<InsertManyResult>;
   insertMany(docs: Document[], callback: Callback<InsertManyResult>): void;
   insertMany(docs: Document[], options: BulkWriteOptions): Promise<InsertManyResult>;
-  insertMany(
-    docs: Document[],
-    options: BulkWriteOptions,
-    callback: Callback<InsertManyResult>
-  ): void;
+  insertMany(docs: Document[], options: BulkWriteOptions, callback: Callback<InsertManyResult>): void;
   insertMany(
     docs: Document[],
     options?: BulkWriteOptions | Callback<InsertManyResult>,
     callback?: Callback<InsertManyResult>
   ): Promise<InsertManyResult> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
     options = options ? Object.assign({}, options) : { ordered: true };
 
     return executeOperation(
@@ -353,25 +332,18 @@ export class Collection {
    */
   bulkWrite(operations: AnyBulkWriteOperation[]): Promise<BulkWriteResult>;
   bulkWrite(operations: AnyBulkWriteOperation[], callback: Callback<BulkWriteResult>): void;
-  bulkWrite(
-    operations: AnyBulkWriteOperation[],
-    options: BulkWriteOptions
-  ): Promise<BulkWriteResult>;
-  bulkWrite(
-    operations: AnyBulkWriteOperation[],
-    options: BulkWriteOptions,
-    callback: Callback<BulkWriteResult>
-  ): void;
+  bulkWrite(operations: AnyBulkWriteOperation[], options: BulkWriteOptions): Promise<BulkWriteResult>;
+  bulkWrite(operations: AnyBulkWriteOperation[], options: BulkWriteOptions, callback: Callback<BulkWriteResult>): void;
   bulkWrite(
     operations: AnyBulkWriteOperation[],
     options?: BulkWriteOptions | Callback<BulkWriteResult>,
     callback?: Callback<BulkWriteResult>
   ): Promise<BulkWriteResult> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
     options = options || { ordered: true };
 
     if (!Array.isArray(operations)) {
-      throw new MongoError('operations must be an array of documents');
+      throw new MongoError("operations must be an array of documents");
     }
 
     return executeOperation(
@@ -391,11 +363,7 @@ export class Collection {
    */
   updateOne(filter: Document, update: Document): Promise<UpdateResult | Document>;
   updateOne(filter: Document, update: Document, callback: Callback<UpdateResult | Document>): void;
-  updateOne(
-    filter: Document,
-    update: Document,
-    options: UpdateOptions
-  ): Promise<UpdateResult | Document>;
+  updateOne(filter: Document, update: Document, options: UpdateOptions): Promise<UpdateResult | Document>;
   updateOne(
     filter: Document,
     update: Document,
@@ -408,7 +376,7 @@ export class Collection {
     options?: UpdateOptions | Callback<UpdateResult | Document>,
     callback?: Callback<UpdateResult | Document>
   ): Promise<UpdateResult | Document> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
 
     return executeOperation(
       getTopology(this),
@@ -426,16 +394,8 @@ export class Collection {
    * @param callback - An optional callback, a Promise will be returned if none is provided
    */
   replaceOne(filter: Document, replacement: Document): Promise<UpdateResult | Document>;
-  replaceOne(
-    filter: Document,
-    replacement: Document,
-    callback: Callback<UpdateResult | Document>
-  ): void;
-  replaceOne(
-    filter: Document,
-    replacement: Document,
-    options: ReplaceOptions
-  ): Promise<UpdateResult | Document>;
+  replaceOne(filter: Document, replacement: Document, callback: Callback<UpdateResult | Document>): void;
+  replaceOne(filter: Document, replacement: Document, options: ReplaceOptions): Promise<UpdateResult | Document>;
   replaceOne(
     filter: Document,
     replacement: Document,
@@ -448,7 +408,7 @@ export class Collection {
     options?: ReplaceOptions | Callback<UpdateResult | Document>,
     callback?: Callback<UpdateResult | Document>
   ): Promise<UpdateResult | Document> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
 
     return executeOperation(
       getTopology(this),
@@ -467,11 +427,7 @@ export class Collection {
    */
   updateMany(filter: Document, update: Document): Promise<UpdateResult | Document>;
   updateMany(filter: Document, update: Document, callback: Callback<UpdateResult | Document>): void;
-  updateMany(
-    filter: Document,
-    update: Document,
-    options: UpdateOptions
-  ): Promise<UpdateResult | Document>;
+  updateMany(filter: Document, update: Document, options: UpdateOptions): Promise<UpdateResult | Document>;
   updateMany(
     filter: Document,
     update: Document,
@@ -484,7 +440,7 @@ export class Collection {
     options?: UpdateOptions | Callback<UpdateResult | Document>,
     callback?: Callback<UpdateResult | Document>
   ): Promise<UpdateResult | Document> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
 
     return executeOperation(
       getTopology(this),
@@ -509,7 +465,7 @@ export class Collection {
     options?: DeleteOptions | Callback<DeleteResult>,
     callback?: Callback<DeleteResult>
   ): Promise<DeleteResult> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
 
     return executeOperation(
       getTopology(this),
@@ -538,11 +494,11 @@ export class Collection {
       filter = {};
       options = {};
       callback = undefined;
-    } else if (typeof filter === 'function') {
+    } else if (typeof filter === "function") {
       callback = filter as Callback<DeleteResult>;
       filter = {};
       options = {};
-    } else if (typeof options === 'function') {
+    } else if (typeof options === "function") {
       callback = options;
       options = {};
     }
@@ -573,7 +529,7 @@ export class Collection {
     options?: RenameOptions | Callback<Collection>,
     callback?: Callback<Collection>
   ): Promise<Collection> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
 
     // Intentionally, we do not inherit options from parent for this operation.
     return executeOperation(
@@ -593,11 +549,8 @@ export class Collection {
   drop(callback: Callback<boolean>): void;
   drop(options: DropCollectionOptions): Promise<boolean>;
   drop(options: DropCollectionOptions, callback: Callback<boolean>): void;
-  drop(
-    options?: DropCollectionOptions | Callback<boolean>,
-    callback?: Callback<boolean>
-  ): Promise<boolean> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+  drop(options?: DropCollectionOptions | Callback<boolean>, callback?: Callback<boolean>): Promise<boolean> | void {
+    if (typeof options === "function") (callback = options), (options = {});
     options = options ?? {};
 
     return executeOperation(
@@ -625,13 +578,12 @@ export class Collection {
     options?: FindOptions | Callback<Document>,
     callback?: Callback<Document>
   ): Promise<Document> | void {
-    if (callback !== undefined && typeof callback !== 'function') {
-      throw new TypeError('Third parameter to `findOne()` must be a callback or undefined');
+    if (callback !== undefined && typeof callback !== "function") {
+      throw new TypeError("Third parameter to `findOne()` must be a callback or undefined");
     }
 
-    if (typeof query === 'function')
-      (callback = query as Callback<Document>), (query = {}), (options = {});
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof query === "function") (callback = query as Callback<Document>), (query = {}), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
     query = query || {};
 
     return executeOperation(
@@ -651,18 +603,13 @@ export class Collection {
   find(filter: Document, options: FindOptions): FindCursor;
   find(filter?: Document, options?: FindOptions): FindCursor {
     if (arguments.length > 2) {
-      throw new TypeError('Third parameter to `collection.find()` must be undefined');
+      throw new TypeError("Third parameter to `collection.find()` must be undefined");
     }
-    if (typeof options === 'function') {
-      throw new TypeError('`options` parameter must not be function');
+    if (typeof options === "function") {
+      throw new TypeError("`options` parameter must not be function");
     }
 
-    return new FindCursor(
-      getTopology(this),
-      this.s.namespace,
-      filter,
-      resolveOptions(this, options)
-    );
+    return new FindCursor(getTopology(this), this.s.namespace, filter, resolveOptions(this, options));
   }
 
   /**
@@ -675,17 +622,10 @@ export class Collection {
   options(callback: Callback<Document>): void;
   options(options: OperationOptions): Promise<Document>;
   options(options: OperationOptions, callback: Callback<Document>): void;
-  options(
-    options?: OperationOptions | Callback<Document>,
-    callback?: Callback<Document>
-  ): Promise<Document> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+  options(options?: OperationOptions | Callback<Document>, callback?: Callback<Document>): Promise<Document> | void {
+    if (typeof options === "function") (callback = options), (options = {});
 
-    return executeOperation(
-      getTopology(this),
-      new OptionsOperation(this, resolveOptions(this, options)),
-      callback
-    );
+    return executeOperation(getTopology(this), new OptionsOperation(this, resolveOptions(this, options)), callback);
   }
 
   /**
@@ -698,17 +638,10 @@ export class Collection {
   isCapped(callback: Callback<boolean>): void;
   isCapped(options: OperationOptions): Promise<boolean>;
   isCapped(options: OperationOptions, callback: Callback<boolean>): void;
-  isCapped(
-    options?: OperationOptions | Callback<boolean>,
-    callback?: Callback<boolean>
-  ): Promise<boolean> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+  isCapped(options?: OperationOptions | Callback<boolean>, callback?: Callback<boolean>): Promise<boolean> | void {
+    if (typeof options === "function") (callback = options), (options = {});
 
-    return executeOperation(
-      getTopology(this),
-      new IsCappedOperation(this, resolveOptions(this, options)),
-      callback
-    );
+    return executeOperation(getTopology(this), new IsCappedOperation(this, resolveOptions(this, options)), callback);
   }
 
   /**
@@ -743,17 +676,13 @@ export class Collection {
   createIndex(indexSpec: IndexSpecification): Promise<string>;
   createIndex(indexSpec: IndexSpecification, callback: Callback<string>): void;
   createIndex(indexSpec: IndexSpecification, options: CreateIndexesOptions): Promise<string>;
-  createIndex(
-    indexSpec: IndexSpecification,
-    options: CreateIndexesOptions,
-    callback: Callback<string>
-  ): void;
+  createIndex(indexSpec: IndexSpecification, options: CreateIndexesOptions, callback: Callback<string>): void;
   createIndex(
     indexSpec: IndexSpecification,
     options?: CreateIndexesOptions | Callback<string>,
     callback?: Callback<string>
   ): Promise<string> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
 
     return executeOperation(
       getTopology(this),
@@ -797,28 +726,19 @@ export class Collection {
   createIndexes(indexSpecs: IndexDescription[]): Promise<string[]>;
   createIndexes(indexSpecs: IndexDescription[], callback: Callback<string[]>): void;
   createIndexes(indexSpecs: IndexDescription[], options: CreateIndexesOptions): Promise<string[]>;
-  createIndexes(
-    indexSpecs: IndexDescription[],
-    options: CreateIndexesOptions,
-    callback: Callback<string[]>
-  ): void;
+  createIndexes(indexSpecs: IndexDescription[], options: CreateIndexesOptions, callback: Callback<string[]>): void;
   createIndexes(
     indexSpecs: IndexDescription[],
     options?: CreateIndexesOptions | Callback<string[]>,
     callback?: Callback<string[]>
   ): Promise<string[]> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
     options = options ? Object.assign({}, options) : {};
-    if (typeof options.maxTimeMS !== 'number') delete options.maxTimeMS;
+    if (typeof options.maxTimeMS !== "number") delete options.maxTimeMS;
 
     return executeOperation(
       getTopology(this),
-      new CreateIndexesOperation(
-        this,
-        this.collectionName,
-        indexSpecs,
-        resolveOptions(this, options)
-      ),
+      new CreateIndexesOperation(this, this.collectionName, indexSpecs, resolveOptions(this, options)),
       callback
     );
   }
@@ -839,17 +759,13 @@ export class Collection {
     options?: DropIndexesOptions | Callback<Document>,
     callback?: Callback<Document>
   ): Promise<Document> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
     options = resolveOptions(this, options);
 
     // Run only against primary
     options.readPreference = ReadPreference.primary;
 
-    return executeOperation(
-      getTopology(this),
-      new DropIndexOperation(this, indexName, options),
-      callback
-    );
+    return executeOperation(getTopology(this), new DropIndexOperation(this, indexName, options), callback);
   }
 
   /**
@@ -866,13 +782,9 @@ export class Collection {
     options?: DropIndexesOptions | Callback<Document>,
     callback?: Callback<Document>
   ): Promise<Document> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
 
-    return executeOperation(
-      getTopology(this),
-      new DropIndexesOperation(this, resolveOptions(this, options)),
-      callback
-    );
+    return executeOperation(getTopology(this), new DropIndexesOperation(this, resolveOptions(this, options)), callback);
   }
 
   /**
@@ -894,17 +806,13 @@ export class Collection {
   indexExists(indexes: string | string[]): Promise<boolean>;
   indexExists(indexes: string | string[], callback: Callback<boolean>): void;
   indexExists(indexes: string | string[], options: IndexInformationOptions): Promise<boolean>;
-  indexExists(
-    indexes: string | string[],
-    options: IndexInformationOptions,
-    callback: Callback<boolean>
-  ): void;
+  indexExists(indexes: string | string[], options: IndexInformationOptions, callback: Callback<boolean>): void;
   indexExists(
     indexes: string | string[],
     options?: IndexInformationOptions | Callback<boolean>,
     callback?: Callback<boolean>
   ): Promise<boolean> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
 
     return executeOperation(
       getTopology(this),
@@ -927,7 +835,7 @@ export class Collection {
     options?: IndexInformationOptions | Callback<Document>,
     callback?: Callback<Document>
   ): Promise<Document> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
 
     return executeOperation(
       getTopology(this),
@@ -950,7 +858,7 @@ export class Collection {
     options?: EstimatedDocumentCountOptions | Callback<number>,
     callback?: Callback<number>
   ): Promise<number> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
 
     return executeOperation(
       getTopology(this),
@@ -996,24 +904,20 @@ export class Collection {
     options?: CountDocumentsOptions | Callback<number>,
     callback?: Callback<number>
   ): Promise<number> | void {
-    if (typeof query === 'undefined') {
+    if (typeof query === "undefined") {
       (query = {}), (options = {}), (callback = undefined);
-    } else if (typeof query === 'function') {
+    } else if (typeof query === "function") {
       (callback = query as Callback<number>), (query = {}), (options = {});
     } else {
       if (arguments.length === 2) {
-        if (typeof options === 'function') (callback = options), (options = {});
+        if (typeof options === "function") (callback = options), (options = {});
       }
     }
 
     query = query || {};
     return executeOperation(
       getTopology(this),
-      new CountDocumentsOperation(
-        this,
-        query as Document,
-        resolveOptions(this, options as CountDocumentsOptions)
-      ),
+      new CountDocumentsOperation(this, query as Document, resolveOptions(this, options as CountDocumentsOptions)),
       callback
     );
   }
@@ -1031,22 +935,17 @@ export class Collection {
   distinct(key: string, query: Document): Promise<Document[]>;
   distinct(key: string, query: Document, callback: Callback<Document[]>): void;
   distinct(key: string, query: Document, options: DistinctOptions): Promise<Document[]>;
-  distinct(
-    key: string,
-    query: Document,
-    options: DistinctOptions,
-    callback: Callback<Document[]>
-  ): void;
+  distinct(key: string, query: Document, options: DistinctOptions, callback: Callback<Document[]>): void;
   distinct(
     key: string,
     query?: Document | DistinctOptions | Callback<Document[]>,
     options?: DistinctOptions | Callback<Document[]>,
     callback?: Callback<Document[]>
   ): Promise<Document[]> | void {
-    if (typeof query === 'function') {
+    if (typeof query === "function") {
       (callback = query as Callback<Document[]>), (query = {}), (options = {});
     } else {
-      if (arguments.length === 3 && typeof options === 'function') {
+      if (arguments.length === 3 && typeof options === "function") {
         (callback = options), (options = {});
       }
     }
@@ -1054,12 +953,7 @@ export class Collection {
     query = query || {};
     return executeOperation(
       getTopology(this),
-      new DistinctOperation(
-        this,
-        key,
-        query as Document,
-        resolveOptions(this, options as DistinctOptions)
-      ),
+      new DistinctOperation(this, key, query as Document, resolveOptions(this, options as DistinctOptions)),
       callback
     );
   }
@@ -1078,13 +972,9 @@ export class Collection {
     options?: IndexInformationOptions | Callback<Document>,
     callback?: Callback<Document>
   ): Promise<Document> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
 
-    return executeOperation(
-      getTopology(this),
-      new IndexesOperation(this, resolveOptions(this, options)),
-      callback
-    );
+    return executeOperation(getTopology(this), new IndexesOperation(this, resolveOptions(this, options)), callback);
   }
 
   /**
@@ -1097,11 +987,8 @@ export class Collection {
   stats(callback: Callback<Document>): void;
   stats(options: CollStatsOptions): Promise<Document>;
   stats(options: CollStatsOptions, callback: Callback<Document>): void;
-  stats(
-    options?: CollStatsOptions | Callback<Document>,
-    callback?: Callback<Document>
-  ): Promise<Document> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+  stats(options?: CollStatsOptions | Callback<Document>, callback?: Callback<Document>): Promise<Document> | void {
+    if (typeof options === "function") (callback = options), (options = {});
     options = options ?? {};
 
     return executeOperation(getTopology(this), new CollStatsOperation(this, options), callback);
@@ -1117,17 +1004,13 @@ export class Collection {
   findOneAndDelete(filter: Document): Promise<Document>;
   findOneAndDelete(filter: Document, callback: Callback<Document>): void;
   findOneAndDelete(filter: Document, options: FindAndModifyOptions): Promise<Document>;
-  findOneAndDelete(
-    filter: Document,
-    options: FindAndModifyOptions,
-    callback: Callback<Document>
-  ): void;
+  findOneAndDelete(filter: Document, options: FindAndModifyOptions, callback: Callback<Document>): void;
   findOneAndDelete(
     filter: Document,
     options?: FindAndModifyOptions | Callback<Document>,
     callback?: Callback<Document>
   ): Promise<Document> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
 
     return executeOperation(
       getTopology(this),
@@ -1146,11 +1029,7 @@ export class Collection {
    */
   findOneAndReplace(filter: Document, replacement: Document): Promise<Document>;
   findOneAndReplace(filter: Document, replacement: Document, callback: Callback<Document>): void;
-  findOneAndReplace(
-    filter: Document,
-    replacement: Document,
-    options: FindAndModifyOptions
-  ): Promise<Document>;
+  findOneAndReplace(filter: Document, replacement: Document, options: FindAndModifyOptions): Promise<Document>;
   findOneAndReplace(
     filter: Document,
     replacement: Document,
@@ -1163,7 +1042,7 @@ export class Collection {
     options?: FindAndModifyOptions | Callback<Document>,
     callback?: Callback<Document>
   ): Promise<Document> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
 
     return executeOperation(
       getTopology(this),
@@ -1182,11 +1061,7 @@ export class Collection {
    */
   findOneAndUpdate(filter: Document, update: Document): Promise<Document>;
   findOneAndUpdate(filter: Document, update: Document, callback: Callback<Document>): void;
-  findOneAndUpdate(
-    filter: Document,
-    update: Document,
-    options: FindAndModifyOptions
-  ): Promise<Document>;
+  findOneAndUpdate(filter: Document, update: Document, options: FindAndModifyOptions): Promise<Document>;
   findOneAndUpdate(
     filter: Document,
     update: Document,
@@ -1199,7 +1074,7 @@ export class Collection {
     options?: FindAndModifyOptions | Callback<Document>,
     callback?: Callback<Document>
   ): Promise<Document> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
 
     return executeOperation(
       getTopology(this),
@@ -1216,22 +1091,16 @@ export class Collection {
    */
   aggregate(pipeline: Document[] = [], options?: AggregateOptions): AggregationCursor {
     if (arguments.length > 2) {
-      throw new TypeError('Third parameter to `collection.aggregate()` must be undefined');
+      throw new TypeError("Third parameter to `collection.aggregate()` must be undefined");
     }
     if (!Array.isArray(pipeline)) {
-      throw new TypeError('`pipeline` parameter must be an array of aggregation stages');
+      throw new TypeError("`pipeline` parameter must be an array of aggregation stages");
     }
-    if (typeof options === 'function') {
-      throw new TypeError('`options` parameter must not be function');
+    if (typeof options === "function") {
+      throw new TypeError("`options` parameter must not be function");
     }
 
-    return new AggregationCursor(
-      this,
-      getTopology(this),
-      this.s.namespace,
-      pipeline,
-      resolveOptions(this, options)
-    );
+    return new AggregationCursor(this, getTopology(this), this.s.namespace, pipeline, resolveOptions(this, options));
   }
 
   /**
@@ -1264,10 +1133,7 @@ export class Collection {
    * @param options - Optional settings for the command
    * @param callback - An optional callback, a Promise will be returned if none is provided
    */
-  mapReduce(
-    map: string | MapFunction,
-    reduce: string | ReduceFunction
-  ): Promise<Document | Document[]>;
+  mapReduce(map: string | MapFunction, reduce: string | ReduceFunction): Promise<Document | Document[]>;
   mapReduce(
     map: string | MapFunction,
     reduce: string | ReduceFunction,
@@ -1290,23 +1156,21 @@ export class Collection {
     options?: MapReduceOptions | Callback<Document | Document[]>,
     callback?: Callback<Document | Document[]>
   ): Promise<Document | Document[]> | void {
-    if ('function' === typeof options) (callback = options), (options = {});
+    if ("function" === typeof options) (callback = options), (options = {});
     // Out must always be defined (make sure we don't break weirdly on pre 1.8+ servers)
     if (options?.out == null) {
-      throw new Error(
-        'the out option parameter must be defined, see mongodb docs for possible values'
-      );
+      throw new Error("the out option parameter must be defined, see mongodb docs for possible values");
     }
 
-    if ('function' === typeof map) {
+    if ("function" === typeof map) {
       map = map.toString();
     }
 
-    if ('function' === typeof reduce) {
+    if ("function" === typeof reduce) {
       reduce = reduce.toString();
     }
 
-    if ('function' === typeof options.finalize) {
+    if ("function" === typeof options.finalize) {
       options.finalize = options.finalize.toString();
     }
 
@@ -1351,7 +1215,7 @@ export class Collection {
     options: BulkWriteOptions,
     callback: Callback<InsertManyResult>
   ): Promise<InsertManyResult> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
     options = options || { ordered: false };
     docs = !Array.isArray(docs) ? [docs] : docs;
 
@@ -1377,7 +1241,7 @@ export class Collection {
     options: UpdateOptions,
     callback: Callback<Document>
   ): Promise<UpdateResult> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
     options = options ?? {};
 
     return this.updateMany(selector, update, options, callback);
@@ -1391,12 +1255,8 @@ export class Collection {
    * @param options - Optional settings for the command
    * @param callback - An optional callback, a Promise will be returned if none is provided
    */
-  remove(
-    selector: Document,
-    options: DeleteOptions,
-    callback: Callback
-  ): Promise<DeleteResult> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+  remove(selector: Document, options: DeleteOptions, callback: Callback): Promise<DeleteResult> | void {
+    if (typeof options === "function") (callback = options), (options = {});
     options = options ?? {};
 
     return this.deleteMany(selector, options, callback);
@@ -1415,16 +1275,11 @@ export class Collection {
     options: CreateIndexesOptions,
     callback: Callback<Document>
   ): Promise<Document> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
 
     return executeOperation(
       getTopology(this),
-      new EnsureIndexOperation(
-        this.s.db,
-        this.collectionName,
-        fieldOrSpec,
-        resolveOptions(this, options)
-      ),
+      new EnsureIndexOperation(this.s.db, this.collectionName, fieldOrSpec, resolveOptions(this, options)),
       callback
     );
   }
@@ -1453,10 +1308,10 @@ export class Collection {
     options?: CountOptions | Callback<number>,
     callback?: Callback<number>
   ): Promise<number> | void {
-    if (typeof query === 'function') {
+    if (typeof query === "function") {
       (callback = query as Callback<number>), (query = {}), (options = {});
     } else {
-      if (typeof options === 'function') (callback = options), (options = {});
+      if (typeof options === "function") (callback = options), (options = {});
     }
 
     query = query || {};
@@ -1481,12 +1336,7 @@ export class Collection {
   findAndRemove(query: Document): Promise<Document>;
   findAndRemove(query: Document, sort: Sort, callback: Callback): void;
   findAndRemove(query: Document, sort: Sort): Promise<Document>;
-  findAndRemove(
-    query: Document,
-    sort: Sort,
-    options: FindAndModifyOptions,
-    callback: Callback
-  ): void;
+  findAndRemove(query: Document, sort: Sort, options: FindAndModifyOptions, callback: Callback): void;
   findAndRemove(query: Document, sort: Sort, options: FindAndModifyOptions): Promise<Document>;
   findAndRemove(
     query: Document,
@@ -1497,11 +1347,11 @@ export class Collection {
     let sort = sortOrOptionsOrCallback ?? {};
     let options = optionsOrCallback ?? {};
     let callback = _callback;
-    if (typeof sort === 'function') {
+    if (typeof sort === "function") {
       callback = sort;
       sort = {};
     }
-    if (typeof options === 'function') {
+    if (typeof options === "function") {
       callback = options;
       options = {};
     }
@@ -1529,18 +1379,8 @@ export class Collection {
    * @param callback - An optional callback, a Promise will be returned if none is provided
    */
   _findAndModify(query: Document, sort: Document, doc: Document): Promise<Document>;
-  _findAndModify(
-    query: Document,
-    sort: Document,
-    doc: Document,
-    callback: Callback<Document>
-  ): void;
-  _findAndModify(
-    query: Document,
-    sort: Document,
-    doc: Document,
-    options: FindAndModifyOptions
-  ): Promise<Document>;
+  _findAndModify(query: Document, sort: Document, doc: Document, callback: Callback<Document>): void;
+  _findAndModify(query: Document, sort: Document, doc: Document, options: FindAndModifyOptions): Promise<Document>;
   _findAndModify(
     query: Document,
     sort: Document,
@@ -1555,79 +1395,34 @@ export class Collection {
     options?: FindAndModifyOptions | Callback<Document>,
     callback?: Callback<Document>
   ): Promise<Document> | void {
-    if (typeof options === 'function') (callback = options), (options = {});
+    if (typeof options === "function") (callback = options), (options = {});
     options = resolveOptions(this, options);
 
     // Force read preference primary
     options.readPreference = ReadPreference.primary;
 
-    return executeOperation(
-      getTopology(this),
-      new FindAndModifyOperation(this, query, sort, doc, options),
-      callback
-    );
+    return executeOperation(getTopology(this), new FindAndModifyOperation(this, query, sort, doc, options), callback);
   }
 }
 
-const DEPRECATED_FIND_OPTIONS = ['maxScan', 'fields', 'snapshot', 'oplogReplay'];
+const DEPRECATED_FIND_OPTIONS = ["maxScan", "fields", "snapshot", "oplogReplay"];
 Collection.prototype.find = deprecateOptions(
   {
-    name: 'collection.find',
+    name: "collection.find",
     deprecatedOptions: DEPRECATED_FIND_OPTIONS,
-    optionsIndex: 1
+    optionsIndex: 1,
   },
   Collection.prototype.find
 );
 
 Collection.prototype.findOne = deprecateOptions(
   {
-    name: 'collection.find',
+    name: "collection.find",
     deprecatedOptions: DEPRECATED_FIND_OPTIONS,
-    optionsIndex: 1
+    optionsIndex: 1,
   },
   Collection.prototype.findOne
 );
 
-Collection.prototype.insert = deprecate(
-  Collection.prototype.insert,
-  'collection.insert is deprecated. Use insertOne, insertMany or bulkWrite instead.'
-);
-
-Collection.prototype.update = deprecate(
-  Collection.prototype.update,
-  'collection.update is deprecated. Use updateOne, updateMany, or bulkWrite instead.'
-);
-
 Collection.prototype.removeOne = Collection.prototype.deleteOne;
 Collection.prototype.removeMany = Collection.prototype.deleteMany;
-
-Collection.prototype.remove = deprecate(
-  Collection.prototype.remove,
-  'collection.remove is deprecated. Use deleteOne, deleteMany, or bulkWrite instead.'
-);
-
-Collection.prototype.dropAllIndexes = deprecate(
-  Collection.prototype.dropIndexes,
-  'collection.dropAllIndexes is deprecated. Use dropIndexes instead.'
-);
-
-Collection.prototype.ensureIndex = deprecate(
-  Collection.prototype.ensureIndex,
-  'collection.ensureIndex is deprecated. Use createIndexes instead.'
-);
-
-Collection.prototype.count = deprecate(
-  Collection.prototype.count,
-  'collection.count is deprecated, and will be removed in a future version.' +
-    ' Use Collection.countDocuments or Collection.estimatedDocumentCount instead'
-);
-
-Collection.prototype.findAndModify = deprecate(
-  Collection.prototype._findAndModify,
-  'collection.findAndModify is deprecated. Use findOneAndUpdate, findOneAndReplace or findOneAndDelete instead.'
-);
-
-Collection.prototype.findAndRemove = deprecate(
-  Collection.prototype.findAndRemove,
-  'collection.findAndRemove is deprecated. Use findOneAndDelete instead.'
-);

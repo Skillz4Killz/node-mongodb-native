@@ -1,3 +1,4 @@
+import { createHash } from "../../deps.ts";
 import { Aspect, defineAspects } from './operation.ts';
 import { CommandOperation, CommandOperationOptions } from './command.ts';
 import { MongoError } from '../error.ts';
@@ -82,10 +83,10 @@ export class AddUserOperation extends CommandOperation<Document> {
 
     if (!digestPassword) {
       // Use node md5 generator
-      const md5 = crypto.createHash('md5');
+      const md5 = createHash('md5');
       // Generate keys used for authentication
       md5.update(username + ':mongo:' + password);
-      userPassword = md5.digest('hex');
+      userPassword = md5.digest();
     }
 
     // Build the command to execute

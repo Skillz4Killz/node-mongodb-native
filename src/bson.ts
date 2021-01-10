@@ -1,6 +1,5 @@
 import { SerializeOptions } from "../deps.ts";
 import type { OperationParent } from './operations/command.ts';
-// import { SerializeOptions } from '../deps.ts';
 
 
 /** @public */

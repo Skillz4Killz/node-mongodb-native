@@ -11,4 +11,5 @@ export * from "https://deno.land/x/denoflate@1.1/mod.ts";
 export * from "https://deno.land/std@0.83.0/node/module.ts";
 export * from "https://deno.land/std@0.83.0/http/mod.ts";
 export * from "https://raw.githubusercontent.com/Skillz4Killz/denque/master/mod.ts";
-
+export { endianness } from "https://deno.land/std@0.83.0/node/os.ts";
+export * from "https://deno.land/std@0.83.0/node/timers.ts";

@@ -20,7 +20,7 @@ function addListeners(mongoClient: MongoClient, topology: Topology) {
   topology.on("reconnect", createListener(mongoClient, "reconnect"));
 }
 
-export function connect(mongoClient: MongoClient, options: MongoOptions, callback: Callback<MongoClient>): void {
+export function connectOperations(mongoClient: MongoClient, options: MongoOptions, callback: Callback<MongoClient>): void {
   if (!callback) {
     throw new Error("no callback function provided");
   }

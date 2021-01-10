@@ -15,7 +15,7 @@ import { MongoClient } from "./mongo_client.ts";
 import { MongoCredentials } from './cmap/auth/mongo_credentials.ts';
 import type { TagSet } from './sdam/server_description.ts';
 import { Logger, LoggerLevel } from './logger.ts';
-import { DEFAULT_PK_FACTORY, HostAddress, makeClientMetadata, PromiseProvider, setDifference } from "../mod.ts";
+import { createAutoEncrypter, DEFAULT_PK_FACTORY, HostAddress, makeClientMetadata, PromiseProvider, setDifference } from "../mod.ts";
 
 /**
  * The following regular expression validates a connection string and breaks the

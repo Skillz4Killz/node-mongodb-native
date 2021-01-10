@@ -1,34 +1,36 @@
-import { Document } from '../../bson.ts';
-import { MongoError, AnyError } from '../../error.ts';
-import { AuthProvider, AuthContext } from './auth_provider.ts';
-import { Callback, ns } from '../../utils.ts';
-import type { MongoCredentials } from './mongo_credentials.ts';
-import type { HandshakeDocument } from '../connect.ts';
+import { Document } from "../../bson.ts";
+import { MongoError, AnyError } from "../../error.ts";
+import { AuthProvider, AuthContext } from "./auth_provider.ts";
+import { Callback, ns } from "../../utils.ts";
+import type { MongoCredentials } from "./mongo_credentials.ts";
+import type { HandshakeDocument } from "../connect.ts";
 
-import { saslprep } from '../../deps.ts';
-import { AuthMechanism } from './defaultAuthProviders.ts';
+import { saslprep } from "../../deps.ts";
+import { AuthMechanism } from "./defaultAuthProviders.ts";
 import { Buffer, Binary, randomBytes, createHash, pbkdf2Sync } from "../../../deps.ts";
 
-type CryptoMethod = 'sha1' | 'sha256';
+type CryptoMethod = "sha1" | "sha256";
 
 class ScramSHA extends AuthProvider {
   cryptoMethod: CryptoMethod;
   constructor(cryptoMethod: CryptoMethod) {
     super();
-    this.cryptoMethod = cryptoMethod || 'sha1';
+    this.cryptoMethod = cryptoMethod || "sha1";
   }
 
   prepare(handshakeDoc: HandshakeDocument, authContext: AuthContext, callback: Callback) {
     const cryptoMethod = this.cryptoMethod;
     const credentials = authContext.credentials;
     if (!credentials) {
-      return callback(new MongoError('AuthContext must provide credentials.'));
+      return callback(new MongoError("AuthContext must provide credentials."));
     }
-    if (cryptoMethod === 'sha256' && saslprep == null) {
-      console.warn('Warning: no saslprep library specified. Passwords will not be sanitized');
+    if (cryptoMethod === "sha256" && saslprep == null) {
+      console.warn("Warning: no saslprep library specified. Passwords will not be sanitized");
     }
 
     randomBytes(24, (err, nonce) => {
+      if (!nonce) throw new Error("No Nonce Provided.");
+
       if (err) {
         return callback(err);
       }
@@ -38,8 +40,8 @@ class ScramSHA extends AuthProvider {
 
       const request = Object.assign({}, handshakeDoc, {
         speculativeAuthenticate: Object.assign(makeFirstMessage(cryptoMethod, credentials, nonce), {
-          db: credentials.source
-        })
+          db: credentials.source,
+        }),
       });
 
       callback(undefined, request);
@@ -49,12 +51,7 @@ class ScramSHA extends AuthProvider {
   auth(authContext: AuthContext, callback: Callback) {
     const response = authContext.response;
     if (response && response.speculativeAuthenticate) {
-      continueScramConversation(
-        this.cryptoMethod,
-        response.speculativeAuthenticate,
-        authContext,
-        callback
-      );
+      continueScramConversation(this.cryptoMethod, response.speculativeAuthenticate, authContext, callback);
 
       return;
     }
@@ -64,49 +61,42 @@ class ScramSHA extends AuthProvider {
 }
 
 function cleanUsername(username: string) {
-  return username.replace('=', '=3D').replace(',', '=2C');
+  return username.replace("=", "=3D").replace(",", "=2C");
 }
 
 function clientFirstMessageBare(username: string, nonce: Buffer) {
   // NOTE: This is done b/c Javascript uses UTF-16, but the server is hashing in UTF-8.
   // Since the username is not sasl-prep-d, we need to do this here.
   return Buffer.concat([
-    Buffer.from('n=', 'utf8'),
-    Buffer.from(username, 'utf8'),
-    Buffer.from(',r=', 'utf8'),
-    Buffer.from(nonce.toString('base64'), 'utf8')
+    Buffer.from("n=", "utf8"),
+    Buffer.from(username, "utf8"),
+    Buffer.from(",r=", "utf8"),
+    Buffer.from(nonce.toString("base64"), "utf8"),
   ]);
 }
 
-function makeFirstMessage(
-  cryptoMethod: CryptoMethod,
-  credentials: MongoCredentials,
-  nonce: Buffer
-) {
+function makeFirstMessage(cryptoMethod: CryptoMethod, credentials: MongoCredentials, nonce: Buffer) {
   const username = cleanUsername(credentials.username);
-  const mechanism =
-    cryptoMethod === 'sha1' ? AuthMechanism.MONGODB_SCRAM_SHA1 : AuthMechanism.MONGODB_SCRAM_SHA256;
+  const mechanism = cryptoMethod === "sha1" ? AuthMechanism.MONGODB_SCRAM_SHA1 : AuthMechanism.MONGODB_SCRAM_SHA256;
 
   // NOTE: This is done b/c Javascript uses UTF-16, but the server is hashing in UTF-8.
   // Since the username is not sasl-prep-d, we need to do this here.
   return {
     saslStart: 1,
     mechanism,
-    payload: new Binary(
-      Buffer.concat([Buffer.from('n,,', 'utf8'), clientFirstMessageBare(username, nonce)])
-    ),
+    payload: new Binary(Buffer.concat([Buffer.from("n,,", "utf8"), clientFirstMessageBare(username, nonce)])),
     autoAuthorize: 1,
-    options: { skipEmptyExchange: true }
+    options: { skipEmptyExchange: true },
   };
 }
 
 function executeScram(cryptoMethod: CryptoMethod, authContext: AuthContext, callback: Callback) {
   const { connection, credentials } = authContext;
   if (!credentials) {
-    return callback(new MongoError('AuthContext must provide credentials.'));
+    return callback(new MongoError("AuthContext must provide credentials."));
   }
   if (!authContext.nonce) {
-    return callback(new MongoError('AuthContext must contain a valid nonce property'));
+    return callback(new MongoError("AuthContext must contain a valid nonce property"));
   }
   const nonce = authContext.nonce;
   const db = credentials.source;
@@ -131,10 +121,10 @@ function continueScramConversation(
   const connection = authContext.connection;
   const credentials = authContext.credentials;
   if (!credentials) {
-    return callback(new MongoError('AuthContext must provide credentials.'));
+    return callback(new MongoError("AuthContext must provide credentials."));
   }
   if (!authContext.nonce) {
-    return callback(new MongoError('Unable to continue SCRAM without valid nonce'));
+    return callback(new MongoError("Unable to continue SCRAM without valid nonce"));
   }
   const nonce = authContext.nonce;
 
@@ -143,8 +133,8 @@ function continueScramConversation(
   const password = credentials.password;
 
   let processedPassword;
-  if (cryptoMethod === 'sha256') {
-    processedPassword = 'kModuleError' in saslprep ? password : saslprep(password);
+  if (cryptoMethod === "sha256") {
+    processedPassword = "kModuleError" in saslprep ? password : saslprep(password);
   } else {
     try {
       processedPassword = passwordDigest(username, password);
@@ -153,9 +143,7 @@ function continueScramConversation(
     }
   }
 
-  const payload = Buffer.isBuffer(response.payload)
-    ? new Binary(response.payload)
-    : response.payload;
+  const payload = Buffer.isBuffer(response.payload) ? new Binary(response.payload) : response.payload;
   const dict = parsePayload(payload.value());
 
   const iterations = parseInt(dict.i, 10);
@@ -166,36 +154,29 @@ function continueScramConversation(
 
   const salt = dict.s;
   const rnonce = dict.r;
-  if (rnonce.startsWith('nonce')) {
+  if (rnonce.startsWith("nonce")) {
     callback(new MongoError(`Server returned an invalid nonce: ${rnonce}`), false);
     return;
   }
 
   // Set up start of proof
   const withoutProof = `c=biws,r=${rnonce}`;
-  const saltedPassword = HI(
-    processedPassword,
-    Buffer.from(salt, 'base64'),
-    iterations,
-    cryptoMethod
-  );
+  const saltedPassword = HI(processedPassword, Buffer.from(salt, "base64"), iterations, cryptoMethod);
 
-  const clientKey = HMAC(cryptoMethod, saltedPassword, 'Client Key');
-  const serverKey = HMAC(cryptoMethod, saltedPassword, 'Server Key');
+  const clientKey = HMAC(cryptoMethod, saltedPassword, "Client Key");
+  const serverKey = HMAC(cryptoMethod, saltedPassword, "Server Key");
   const storedKey = H(cryptoMethod, clientKey);
-  const authMessage = [clientFirstMessageBare(username, nonce), payload.value(), withoutProof].join(
-    ','
-  );
+  const authMessage = [clientFirstMessageBare(username, nonce), payload.value(), withoutProof].join(",");
 
   const clientSignature = HMAC(cryptoMethod, storedKey, authMessage);
   const clientProof = `p=${xor(clientKey, clientSignature)}`;
-  const clientFinal = [withoutProof, clientProof].join(',');
+  const clientFinal = [withoutProof, clientProof].join(",");
 
   const serverSignature = HMAC(cryptoMethod, serverKey, authMessage);
   const saslContinueCmd = {
     saslContinue: 1,
     conversationId: response.conversationId,
-    payload: new Binary(Buffer.from(clientFinal))
+    payload: new Binary(Buffer.from(clientFinal)),
   };
 
   connection.command(ns(`${db}.$cmd`), saslContinueCmd, undefined, (_err, r) => {
@@ -205,8 +186,8 @@ function continueScramConversation(
     }
 
     const parsedResponse = parsePayload(r.payload.value());
-    if (!compareDigest(Buffer.from(parsedResponse.v, 'base64'), serverSignature)) {
-      callback(new MongoError('Server returned an invalid signature'));
+    if (!compareDigest(Buffer.from(parsedResponse.v, "base64"), serverSignature)) {
+      callback(new MongoError("Server returned an invalid signature"));
       return;
     }
 
@@ -217,7 +198,7 @@ function continueScramConversation(
     const retrySaslContinueCmd = {
       saslContinue: 1,
       conversationId: r.conversationId,
-      payload: Buffer.alloc(0)
+      payload: Buffer.alloc(0),
     };
 
     connection.command(ns(`${db}.$cmd`), retrySaslContinueCmd, undefined, callback);
@@ -226,9 +207,9 @@ function continueScramConversation(
 
 function parsePayload(payload: string) {
   const dict: Document = {};
-  const parts = payload.split(',');
+  const parts = payload.split(",");
   for (let i = 0; i < parts.length; i++) {
-    const valueParts = parts[i].split('=');
+    const valueParts = parts[i].split("=");
     dict[valueParts[0]] = valueParts[1];
   }
 
@@ -236,19 +217,19 @@ function parsePayload(payload: string) {
 }
 
 function passwordDigest(username: string, password: string) {
-  if (typeof username !== 'string') {
-    throw new MongoError('username must be a string');
+  if (typeof username !== "string") {
+    throw new MongoError("username must be a string");
   }
 
-  if (typeof password !== 'string') {
-    throw new MongoError('password must be a string');
+  if (typeof password !== "string") {
+    throw new MongoError("password must be a string");
   }
 
   if (password.length === 0) {
-    throw new MongoError('password cannot be empty');
+    throw new MongoError("password cannot be empty");
   }
 
-  const md5 = createHash('md5');
+  const md5 = createHash("md5");
   md5.update(`${username}:mongo:${password}`);
   return md5.digest();
 }
@@ -270,7 +251,7 @@ function xor(a: Buffer, b: Buffer) {
     res.push(a[i] ^ b[i]);
   }
 
-  return Buffer.from(res).toString('base64');
+  return Buffer.from(res).toString("base64");
 }
 
 function H(method: CryptoMethod, text: Buffer) {
@@ -294,24 +275,18 @@ function _hiCachePurge() {
 
 const hiLengthMap = {
   sha256: 32,
-  sha1: 20
+  sha1: 20,
 };
 
 function HI(data: string, salt: Buffer, iterations: number, cryptoMethod: CryptoMethod) {
   // omit the work if already generated
-  const key = [data, salt.toString('base64'), iterations].join('_');
+  const key = [data, salt.toString("base64"), iterations].join("_");
   if (_hiCache[key] !== undefined) {
     return _hiCache[key];
   }
 
   // generate the salt
-  const saltedData = pbkdf2Sync(
-    data,
-    salt,
-    iterations,
-    hiLengthMap[cryptoMethod],
-    cryptoMethod
-  );
+  const saltedData = pbkdf2Sync(data, salt, iterations, hiLengthMap[cryptoMethod], cryptoMethod);
 
   // cache a copy to speed up the next lookup, but prevent unbounded cache growth
   if (_hiCacheCount >= 200) {
@@ -349,12 +324,12 @@ function resolveError(err?: AnyError, result?: Document) {
 
 export class ScramSHA1 extends ScramSHA {
   constructor() {
-    super('sha1');
+    super("sha1");
   }
 }
 
 export class ScramSHA256 extends ScramSHA {
   constructor() {
-    super('sha256');
+    super("sha256");
   }
 }

@@ -1,5 +1,4 @@
 import { Buffer } from "../deps.ts";
-import { MongoError } from './error.ts';
 import type { MongoClient } from './mongo_client.ts';
 import type { Document } from './bson.ts';
 import type { Callback } from './utils.ts';

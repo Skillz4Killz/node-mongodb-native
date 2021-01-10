@@ -239,7 +239,7 @@ function request(uri: string, _options: RequestOptions | Callback, _callback?: C
       timeout: 10000,
       json: true
     },
-    url.parse(uri),
+    new URL(uri),
     options
   );
 

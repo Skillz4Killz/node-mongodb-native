@@ -1,11 +1,10 @@
-import { Buffer, EventEmitter } from "../deps.ts";
+import { EventEmitter } from "../deps.ts";
 import { Db, DbOptions } from "./db.ts";
 import { ChangeStream, ChangeStreamOptions } from "./change_stream.ts";
 import { ReadPreference, ReadPreferenceModeId } from "./read_preference.ts";
 import { MongoError, AnyError } from "./error.ts";
-import { WriteConcern, W, WriteConcernSettings } from "./write_concern.ts";
+import { WriteConcern, W } from "./write_concern.ts";
 import { maybePromise, MongoDBNamespace, Callback, resolveOptions } from "./utils.ts";
-import { connect, validOptions } from "./operations/connect.ts";
 import { PromiseProvider } from "./promise_provider.ts";
 import { Logger } from "./logger.ts";
 import { ReadConcern, ReadConcernLevelId, ReadConcernLike } from "./read_concern.ts";
@@ -18,8 +17,8 @@ import type { ClientSession, ClientSessionOptions } from "./sessions.ts";
 import type { TagSet } from "./sdam/server_description.ts";
 import type { MongoCredentials } from "./cmap/auth/mongo_credentials.ts";
 import { parseOptions } from "./connection_string.ts";
-import { Connection, ConnectionOptions } from "./cmap/connection.ts";
-import { AutoEncrypter, ClientMetadata, HostAddress, ns, SrvPoller } from "../mod.ts";
+import { Connection } from "./cmap/connection.ts";
+import { AutoEncrypter, ClientMetadata, connectOperations, HostAddress, ns, SrvPoller } from "../mod.ts";
 
 /** @public */
 export const LogLevel = {
@@ -334,7 +333,7 @@ export class MongoClient extends EventEmitter {
     }
 
     return maybePromise(callback, (cb) => {
-      connect(this, this[kOptions], (err) => {
+      connectOperations(this, this[kOptions], (err) => {
         if (err) return cb(err);
         cb(undefined, this);
       });
@@ -539,14 +538,6 @@ export class MongoClient extends EventEmitter {
   getLogger(): Logger {
     return this.s.logger;
   }
-
-  /**
-   * @deprecated You cannot logout a MongoClient, you can create a new instance.
-   */
-  logout = deprecate((options: any, callback: Callback): void => {
-    if (typeof options === "function") (callback = options), (options = {});
-    if (typeof callback === "function") callback(undefined, true);
-  }, "Multiple authentication is prohibited on a connected client, please only authenticate once per MongoClient");
 }
 
 /**

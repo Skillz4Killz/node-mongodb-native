@@ -16,6 +16,7 @@ import type { Explain } from "./explain.ts";
 import type { MongoClient } from "./mongo_client.ts";
 import type { CommandOperationOptions, OperationParent } from "./operations/command.ts";
 import { ReadPreference } from "./read_preference.ts";
+import { endianness } from "https://deno.land/std@0.83.0/node/os.ts";
 
 /**
  * MongoDB Driver style callback
@@ -460,7 +461,7 @@ export function getTopology(provider: MongoClient | Db | Collection): Topology {
 
 /** @internal */
 export function emitDeprecationWarning(msg: string): void {
-  return process.emitWarning(msg, "DeprecationWarning");
+  return console.warn("DeprecationWarning", msg);
 }
 
 /**
@@ -886,7 +887,7 @@ export function makeClientMetadata(options?: ClientMetadataOptions): ClientMetad
       architecture: Deno.build.arch,
       version: Deno.build.target,
     },
-    platform: `'Deno ${Deno.version}, (unified)`,
+    platform: `'Deno ${Deno.version} ${endianness()}, (unified)`,
   };
 
   // support optionally provided wrapping driver info

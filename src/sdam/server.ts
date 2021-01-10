@@ -28,7 +28,6 @@ import {
 } from "../error.ts";
 import { Connection, DestroyOptions, QueryOptions, GetMoreOptions, CommandOptions } from "../cmap/connection.ts";
 import type { Topology } from "./topology.ts";
-import type { MongoCredentials } from "../cmap/auth/mongo_credentials.ts";
 import type { ServerHeartbeatSucceededEvent } from "./events.ts";
 import type { ClientSession } from "../sessions.ts";
 import type { Document } from "../bson.ts";

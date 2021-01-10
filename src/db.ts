@@ -1,6 +1,5 @@
-import { ObjectId, Code } from "../deps.ts";
+import { Code } from "../deps.ts";
 import {
-  emitDeprecatedOptionWarning,
   Callback,
   resolveOptions,
   filterOptions,
@@ -147,7 +146,6 @@ export class Db {
    */
   constructor(client: MongoClient, databaseName: string, options?: DbOptions) {
     options = options ?? {};
-    emitDeprecatedOptionWarning(options, ['promiseLibrary']);
 
     // Filter the options
     options = filterOptions(options, DB_OPTIONS_ALLOW_LIST);
@@ -855,16 +853,6 @@ Db.prototype.createCollection = deprecateOptions(
     optionsIndex: 1
   },
   Db.prototype.createCollection
-);
-
-Db.prototype.eval = deprecate(Db.prototype.eval, 'Db.eval is deprecated as of MongoDB version 3.2');
-Db.prototype.ensureIndex = deprecate(
-  Db.prototype.ensureIndex,
-  'Db.ensureIndex is deprecated as of MongoDB version 3.0 / driver version 2.0'
-);
-Db.prototype.profilingInfo = deprecate(
-  Db.prototype.profilingInfo,
-  'Db.profilingInfo is deprecated. Query the system.profile collection directly.'
 );
 
 // Validate the database name

@@ -1,4 +1,4 @@
-import { EventEmitter, Int32 } from "../../deps.ts";
+import { Int32 } from "../../deps.ts";
 import { Connection, ConnectionOptions, CryptoConnection } from "./connection.ts";
 import { MongoError, MongoNetworkError, MongoNetworkTimeoutError, AnyError } from "../error.ts";
 import { AUTH_PROVIDERS, AuthMechanism } from "./auth/defaultAuthProviders.ts";
@@ -318,9 +318,9 @@ function makeConnection(
   }
 
   SOCKET_ERROR_EVENTS.forEach((event) => socket.once(event, errorHandler(event)));
-  if (cancellationToken) {
+  if (options.cancellationToken) {
     cancellationHandler = errorHandler("cancel");
-    cancellationToken.once("cancel", cancellationHandler);
+    options.cancellationToken.once("cancel", cancellationHandler);
   }
 
   socket.once(connectEvent, connectHandler);
