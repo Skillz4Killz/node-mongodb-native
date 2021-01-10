@@ -171,7 +171,7 @@ function prepareHandshakeDocument(authContext: AuthContext, callback: Callback<H
 }
 
 /** @public */
-const LEGAL_SSL_SOCKET_OPTIONS = [
+export const LEGAL_TLS_SOCKET_OPTIONS = [
   "ALPNProtocols",
   "ca",
   "cert",
@@ -191,7 +191,7 @@ const LEGAL_SSL_SOCKET_OPTIONS = [
 ] as const;
 
 /** @public */
-const LEGAL_TCP_SOCKET_OPTIONS = ["family", "hints", "localAddress", "localPort", "lookup"] as const;
+export const LEGAL_TCP_SOCKET_OPTIONS = ["family", "hints", "localAddress", "localPort", "lookup"] as const;
 
 function parseConnectOptions(options: ConnectionOptions): SocketConnectOpts {
   const hostAddress = options.hostAddress;

@@ -19,6 +19,7 @@ import type { MongoCredentials } from "./cmap/auth/mongo_credentials.ts";
 import { parseOptions } from "./connection_string.ts";
 import { Connection } from "./cmap/connection.ts";
 import { AutoEncrypter, ClientMetadata, connectOperations, HostAddress, ns, SrvPoller } from "../mod.ts";
+import type { LEGAL_TLS_SOCKET_OPTIONS, LEGAL_TCP_SOCKET_OPTIONS } from "./cmap/connect.ts";
 
 /** @public */
 export const LogLevel = {

@@ -76,7 +76,7 @@ export class Logger {
         (Object.keys(filteredClasses).length === 0 && classFilters[this.className]))
     ) {
       const dateTime = new Date().getTime();
-      const msg = f('[%s-%s:%s] %s %s', 'DEBUG', this.className, pid, dateTime, message);
+      const msg = `[DEBUG-${this.className}:${pid}] ${dateTime} ${message}`;
       const state = {
         type: LoggerLevel.DEBUG,
         message,
@@ -103,7 +103,7 @@ export class Logger {
         (Object.keys(filteredClasses).length === 0 && classFilters[this.className]))
     ) {
       const dateTime = new Date().getTime();
-      const msg = f('[%s-%s:%s] %s %s', 'WARN', this.className, pid, dateTime, message);
+      const msg = `[WARN-${this.className}:${pid}] ${dateTime} ${message}`;
       const state = {
         type: LoggerLevel.WARN,
         message,
@@ -130,7 +130,7 @@ export class Logger {
         (Object.keys(filteredClasses).length === 0 && classFilters[this.className]))
     ) {
       const dateTime = new Date().getTime();
-      const msg = f('[%s-%s:%s] %s %s', 'INFO', this.className, pid, dateTime, message);
+      const msg = `[INFO-${this.className}:${pid}] ${dateTime} ${message}`;
       const state = {
         type: LoggerLevel.INFO,
         message,
@@ -157,7 +157,7 @@ export class Logger {
         (Object.keys(filteredClasses).length === 0 && classFilters[this.className]))
     ) {
       const dateTime = new Date().getTime();
-      const msg = f('[%s-%s:%s] %s %s', 'ERROR', this.className, pid, dateTime, message);
+      const msg = `[ERROR-${this.className}:${pid}] ${dateTime} ${message}`;
       const state = {
         type: LoggerLevel.ERROR,
         message,
