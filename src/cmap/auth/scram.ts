@@ -8,6 +8,7 @@ import type { HandshakeDocument } from "../connect.ts";
 import { saslprep } from "../../deps.ts";
 import { AuthMechanism } from "./defaultAuthProviders.ts";
 import { Buffer, Binary, randomBytes, createHash, pbkdf2Sync } from "../../../deps.ts";
+import { hmac } from "https://deno.land/x/aws_sign_v4@0.1.5/deps.ts";
 
 type CryptoMethod = "sha1" | "sha256";
 
@@ -259,7 +260,7 @@ function H(method: CryptoMethod, text: Buffer) {
 }
 
 function HMAC(method: CryptoMethod, key: Buffer, text: Buffer | string) {
-  return createHmac(method, key).update(text).digest();
+  return hmac(method, key, text);
 }
 
 interface HICache {
